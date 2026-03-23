@@ -29,7 +29,7 @@ namespace SwitchAudioDevices.ViewModels
         private bool _launchAtStartup;
         private bool _isSettingsOpen;
 
-        public ObservableCollection<AudioDevice>            Devices        { get; } = [];
+        public ObservableCollection<AudioDevice>             Devices         { get; } = [];
         public ObservableCollection<SettingsDeviceViewModel> SettingsDevices { get; } = [];
 
         public bool IsSettingsOpen
@@ -52,15 +52,10 @@ namespace SwitchAudioDevices.ViewModels
 
         // ── Commands ────────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Primary action on a device card.
-        /// • Regular / BT-connected  → set as default output.
-        /// • BT-disconnected         → initiate Bluetooth connection, then set default.
-        /// </summary>
-        public ICommand DeviceActionCommand    { get; }
-        public ICommand RefreshCommand         { get; }
+        public ICommand DeviceActionCommand         { get; }
+        public ICommand RefreshCommand              { get; }
         public ICommand ToggleSettingsDeviceCommand { get; }
-        public ICommand ToggleStartupCommand   { get; }
+        public ICommand ToggleStartupCommand        { get; }
 
         public MainViewModel(AudioService audioService, SettingsService settingsService)
         {
@@ -80,17 +75,32 @@ namespace SwitchAudioDevices.ViewModels
 
         public void LoadDevices()
         {
+            // Unsubscribe from old devices before clearing
+            foreach (var d in Devices)
+                d.PropertyChanged -= OnDevicePropertyChanged;
+
             Devices.Clear();
             foreach (var ep in _audioService.GetPlaybackEndpoints(_settingsService.Settings))
-                Devices.Add(new AudioDevice
+            {
+                var device = new AudioDevice
                 {
                     Id                   = ep.Id,
                     Name                 = ep.Name,
                     IsDefault            = ep.IsDefault,
                     IsBluetooth          = ep.IsBluetooth,
                     IsBluetoothConnected = ep.IsBluetoothConnected,
-                    BluetoothAddress     = ep.BluetoothAddress
-                });
+                    BluetoothAddress     = ep.BluetoothAddress,
+                    Volume               = ep.Volume
+                };
+                device.PropertyChanged += OnDevicePropertyChanged;
+                Devices.Add(device);
+            }
+        }
+
+        private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(AudioDevice.Volume) && sender is AudioDevice d)
+                _audioService.SetDeviceVolume(d.Id, d.Volume);
         }
 
         public void LoadSettingsDevices()
@@ -104,6 +114,25 @@ namespace SwitchAudioDevices.ViewModels
                     IsBluetooth = ep.IsBluetooth,
                     IsEnabled   = _settingsService.IsDeviceEnabled(ep.Id)
                 });
+        }
+
+        // ── Cycle device (hotkey) ────────────────────────────────────────────────
+
+        /// <summary>
+        /// Switches to the next enabled, connected device in the list.
+        /// Disconnected Bluetooth devices are skipped.
+        /// </summary>
+        public void CycleDevice()
+        {
+            var active = Devices.Where(d => !d.IsBluetooth || d.IsBluetoothConnected).ToList();
+            if (active.Count < 2) return;
+
+            var currentIndex = active.FindIndex(d => d.IsDefault);
+            var nextIndex    = (currentIndex + 1) % active.Count;
+            var next         = active[nextIndex];
+
+            SwitchDefault(next.Id);
+            LoadDevices();
         }
 
         // ── Device action ───────────────────────────────────────────────────────
@@ -126,30 +155,18 @@ namespace SwitchAudioDevices.ViewModels
             foreach (var d in Devices) d.IsDefault = d.Id == deviceId;
         }
 
-        /// <summary>
-        /// Calls BluetoothSetServiceState to enable A2DP/HFP, then polls the audio
-        /// endpoint state every 600 ms until it becomes Active (connected) or 15 s
-        /// elapse.  On success the device is automatically set as the default output.
-        /// </summary>
         private async Task ConnectBluetoothAsync(AudioDevice device)
         {
-            device.IsConnecting      = true;
+            device.IsConnecting       = true;
             device.IsConnectionFailed = false;
 
-            // Yield to let WPF paint the "Connecting…" badge before we call the
-            // potentially-blocking Win32 API on the thread pool.
             await Task.Yield();
 
-            bool started = await Task.Run(() => _audioService.ConnectBluetoothDevice(device.BluetoothAddress));
+            bool started = await Task.Run(() =>
+                _audioService.ConnectBluetoothDevice(device.BluetoothAddress, device.Name));
 
-            if (!started)
-            {
-                device.IsConnecting = false;
-                await ShowConnectionFailed(device);
-                return;
-            }
+            var deadline = DateTime.UtcNow.AddSeconds(started ? 15 : 5);
 
-            var deadline = DateTime.UtcNow.AddSeconds(15);
             while (DateTime.UtcNow < deadline)
             {
                 await Task.Delay(600);
@@ -166,7 +183,6 @@ namespace SwitchAudioDevices.ViewModels
                 }
             }
 
-            // Timed out
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
                 device.IsConnecting = false;
