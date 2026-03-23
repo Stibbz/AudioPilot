@@ -20,10 +20,41 @@ namespace SwitchAudioDevices
             InitializeComponent();
             _viewModel = new MainViewModel(audioService, settingsService);
             DataContext = _viewModel;
-            Loaded += OnLoaded;
+            Loaded           += OnLoaded;
+            IsVisibleChanged += OnIsVisibleChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e) => EnableDwmEffects();
+
+        private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if ((bool)e.NewValue) PlayShowAnimation();
+        }
+
+        private void PlayShowAnimation()
+        {
+            // Fade in
+            Opacity = 0;
+            BeginAnimation(OpacityProperty,
+                new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                });
+
+            // Slide up 10px from below
+            if (RootBorder.RenderTransform is not TranslateTransform tt)
+            {
+                tt = new TranslateTransform(0, 10);
+                RootBorder.RenderTransform = tt;
+            }
+            else tt.Y = 10;
+
+            tt.BeginAnimation(TranslateTransform.YProperty,
+                new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(200))
+                {
+                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+                });
+        }
 
         private void EnableDwmEffects()
         {
@@ -45,6 +76,13 @@ namespace SwitchAudioDevices
             Hide();
         }
 
+        // Auto-hide when the window loses focus (tray popup behaviour)
+        protected override void OnDeactivated(EventArgs e)
+        {
+            base.OnDeactivated(e);
+            Hide();
+        }
+
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ClickCount == 2)
@@ -53,11 +91,10 @@ namespace SwitchAudioDevices
                 DragMove();
         }
 
-        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
         private void CloseButton_Click(object sender, RoutedEventArgs e) => Hide();
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e) => NavigateToSettings();
-        private void BackButton_Click(object sender, RoutedEventArgs e) => NavigateToDeviceList();
+        private void BackButton_Click(object sender, RoutedEventArgs e)    => NavigateToDeviceList();
 
         public void NavigateToSettings()
         {
@@ -72,7 +109,7 @@ namespace SwitchAudioDevices
             var width = ContentContainer.ActualWidth;
 
             Animate(DeviceListTransform, TranslateTransform.XProperty, 0, -width);
-            Animate(SettingsTransform, TranslateTransform.XProperty, width, 0);
+            Animate(SettingsTransform,   TranslateTransform.XProperty, width, 0);
         }
 
         public void NavigateToDeviceList()
@@ -81,8 +118,8 @@ namespace SwitchAudioDevices
             _viewModel.IsSettingsOpen = false;
             _viewModel.LoadDevices();
 
-            var width = ContentContainer.ActualWidth;
-            var hideAnim = Animate(SettingsTransform, TranslateTransform.XProperty, 0, width);
+            var width    = ContentContainer.ActualWidth;
+            var hideAnim = Animate(SettingsTransform,   TranslateTransform.XProperty, 0, width);
             hideAnim.Completed += (s, e) =>
             {
                 SettingsPanel.Visibility = Visibility.Collapsed;
@@ -92,8 +129,8 @@ namespace SwitchAudioDevices
         }
 
         private static DoubleAnimation Animate(
-            System.Windows.Media.TranslateTransform target,
-            System.Windows.DependencyProperty property,
+            TranslateTransform target,
+            DependencyProperty property,
             double from, double to)
         {
             var anim = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(260))
