@@ -8,9 +8,9 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        WindowStartupLocation="CenterScreen"
-        ResizeMode="CanMinimize"
-        ShowInTaskbar="True">
+        WindowStartupLocation="Manual"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
 
     <Window.Resources>
 
@@ -148,14 +148,10 @@
 
         <!-- Icon glyph: speaker for regular, BT symbol for BT devices -->
         <Style x:Key="DeviceIconTextStyle" TargetType="TextBlock">
-            <Setter Property="Text" Value="&#xE767;" />
             <Setter Property="Foreground" Value="#555555" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsDefault}" Value="True">
                     <Setter Property="Foreground" Value="#4A90D9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsBluetooth}" Value="True">
-                    <Setter Property="Text" Value="&#xE702;" />
                 </DataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -245,15 +241,10 @@
         </Style>
 
         <Style x:Key="SettingsIconTextStyle" TargetType="TextBlock">
-            <Setter Property="Text" Value="&#xE767;" />
             <Setter Property="Foreground" Value="#555555" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsEnabled}" Value="True">
                     <Setter Property="Foreground" Value="#4A90D9" />
-                </DataTrigger>
-                <!-- BT devices use the Bluetooth glyph -->
-                <DataTrigger Binding="{Binding IsBluetooth}" Value="True">
-                    <Setter Property="Text" Value="&#xE702;" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -276,9 +267,66 @@
             </Style.Triggers>
         </Style>
 
+
+        <!-- ══ Volume slider ══════════════════════════════════════════════════ -->
+        <Style x:Key="VolumeSliderStyle" TargetType="Slider">
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="1" />
+            <Setter Property="SmallChange" Value="0.02" />
+            <Setter Property="LargeChange" Value="0.1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center" Height="16">
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="#4A90D9" Height="3" CornerRadius="1.5" />
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Width="11" Height="11" Fill="#4A90D9">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Fill" Value="#6AAAE8" />
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="#2E2E2E" Height="3" CornerRadius="1.5" />
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
-    <Border Background="#1A1A1A" CornerRadius="12" BorderBrush="#2E2E2E" BorderThickness="1">
+
+    <Border x:Name="RootBorder" Background="#1A1A1A" CornerRadius="12" BorderBrush="#2E2E2E" BorderThickness="1">
         <Border.Effect>
             <DropShadowEffect Color="Black" BlurRadius="30" ShadowDepth="6" Opacity="0.6" />
         </Border.Effect>
@@ -310,10 +358,6 @@
                         <Button x:Name="SettingsButton" Click="SettingsButton_Click" Width="32" Height="32"
                                 ToolTip="Settings" Style="{StaticResource TitleBarButtonStyle}">
                             <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="13" Foreground="#888888" />
-                        </Button>
-                        <Button Click="MinimizeButton_Click" Width="32" Height="32"
-                                ToolTip="Minimize" Style="{StaticResource TitleBarButtonStyle}">
-                            <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="#888888" />
                         </Button>
                         <Button Click="CloseButton_Click" Width="32" Height="32"
                                 ToolTip="Close" Style="{StaticResource CloseButtonStyle}">
@@ -360,6 +404,10 @@
                                                 CommandParameter="{Binding Id}"
                                                 Style="{StaticResource DeviceCardButtonStyle}">
                                             <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="44" />
                                                     <ColumnDefinition Width="*" />
@@ -369,7 +417,7 @@
                                                 <!-- Icon bubble -->
                                                 <Border Width="36" Height="36" CornerRadius="8" VerticalAlignment="Center"
                                                         Style="{StaticResource DeviceIconBorderStyle}">
-                                                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                    <TextBlock Text="{Binding DeviceIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                                                Style="{StaticResource DeviceIconTextStyle}" />
                                                 </Border>
@@ -508,6 +556,29 @@
                                                 </Grid>
                                                 <!-- ── end badges ─── -->
 
+                                                <!-- Volume slider - hidden for disconnected BT devices -->
+                                                <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsBluetooth}" Value="True" />
+                                                                        <Condition Binding="{Binding IsBluetoothConnected}" Value="False" />
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </MultiDataTrigger>
+                                                                <DataTrigger Binding="{Binding IsConnecting}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <Slider Value="{Binding Volume, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                            Style="{StaticResource VolumeSliderStyle}" />
+                                                </Border>
+
                                             </Grid>
                                         </Button>
                                     </DataTemplate>
@@ -575,7 +646,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <Border Width="36" Height="36" CornerRadius="8" VerticalAlignment="Center"
                                                         Style="{StaticResource SettingsIconBorderStyle}">
-                                                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                    <TextBlock Text="{Binding DeviceIconGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="16"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                                                Style="{StaticResource SettingsIconTextStyle}" />
                                                 </Border>
