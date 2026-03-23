@@ -19,6 +19,12 @@ namespace SwitchAudioDevices.Services
         private readonly MMDeviceEnumerator _enumerator = new();
         private readonly BluetoothService   _bt         = new();
 
+        // BT paired-device list changes rarely; cache it for a few seconds so that
+        // back-and-forth settings navigation doesn't re-enumerate on every trip.
+        private IReadOnlyList<BluetoothDeviceInfo>? _btCache;
+        private DateTime _btCacheAt = DateTime.MinValue;
+        private static readonly TimeSpan BtCacheTtl = TimeSpan.FromSeconds(5);
+
         // ── Public API ──────────────────────────────────────────────────────────
 
         /// <summary>
@@ -29,7 +35,7 @@ namespace SwitchAudioDevices.Services
         public IReadOnlyList<AudioEndpointInfo> GetAllEndpoints()
         {
             var defaultId = GetDefaultId();
-            var btDevices = _bt.GetPairedDevices();
+            var btDevices = GetCachedBtDevices();
             var result    = new List<AudioEndpointInfo>();
 
             foreach (var ep in _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.All))
@@ -105,11 +111,24 @@ namespace SwitchAudioDevices.Services
         }
 
         public bool ConnectBluetoothDevice(ulong bluetoothAddress, string deviceName)
-            => _bt.ConnectDevice(bluetoothAddress, deviceName);
+        {
+            // Invalidate cache so the next poll after connecting sees fresh BT state.
+            _btCache = null;
+            return _bt.ConnectDevice(bluetoothAddress, deviceName);
+        }
 
         public void Dispose() => _enumerator.Dispose();
 
         // ── Helpers ─────────────────────────────────────────────────────────────
+
+        private IReadOnlyList<BluetoothDeviceInfo> GetCachedBtDevices()
+        {
+            if (_btCache != null && DateTime.UtcNow - _btCacheAt < BtCacheTtl)
+                return _btCache;
+            _btCache  = _bt.GetPairedDevices();
+            _btCacheAt = DateTime.UtcNow;
+            return _btCache;
+        }
 
         private string? GetDefaultId()
         {

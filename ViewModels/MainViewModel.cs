@@ -174,6 +174,49 @@ namespace SwitchAudioDevices.ViewModels
                 });
         }
 
+        /// <summary>
+        /// Async version: the WASAPI/BT enumeration runs on a thread-pool thread so the
+        /// UI stays responsive during navigation. The ObservableCollection is updated back
+        /// on the calling (UI) thread after the IO completes.
+        /// </summary>
+        public async Task LoadSettingsDevicesAsync()
+        {
+            var endpoints = await Task.Run(() => _audioService.GetAllEndpoints());
+            SettingsDevices.Clear();
+            foreach (var ep in endpoints)
+                SettingsDevices.Add(new SettingsDeviceViewModel
+                {
+                    Id          = ep.Id,
+                    Name        = ep.Name,
+                    IsBluetooth = ep.IsBluetooth,
+                    IsEnabled   = _settingsService.IsDeviceEnabled(ep.Id)
+                });
+        }
+
+        public async Task LoadDevicesAsync()
+        {
+            var endpoints = await Task.Run(() =>
+                _audioService.GetPlaybackEndpoints(_settingsService.Settings));
+
+            foreach (var d in Devices) d.PropertyChanged -= OnDevicePropertyChanged;
+            Devices.Clear();
+            foreach (var ep in endpoints)
+            {
+                var device = new AudioDevice
+                {
+                    Id                   = ep.Id,
+                    Name                 = ep.Name,
+                    IsDefault            = ep.IsDefault,
+                    IsBluetooth          = ep.IsBluetooth,
+                    IsBluetoothConnected = ep.IsBluetoothConnected,
+                    BluetoothAddress     = ep.BluetoothAddress,
+                    Volume               = ep.Volume
+                };
+                device.PropertyChanged += OnDevicePropertyChanged;
+                Devices.Add(device);
+            }
+        }
+
         // ── Cycle device (hotkey) ────────────────────────────────────────────────
 
         /// <summary>
