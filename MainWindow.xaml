@@ -740,16 +740,29 @@
                 </Grid>
             </Grid>
 
-            <!-- ══ FOOTER ════════════════════════════════════════════════════════ -->
+            <!-- ══ STATUS STRIP ═════════════════════════════════════════════════════ -->
+            <!-- Collapses entirely when there is nothing to say. -->
             <Border Grid.Row="2" BorderBrush="#252525" BorderThickness="0,1,0,0"
-                    Padding="20,10" CornerRadius="0,0,12,12">
-                <TextBlock FontSize="11" Foreground="#3A3A3A" HorizontalAlignment="Center">
+                    Padding="20,8" CornerRadius="0,0,12,12">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasStatus}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock FontSize="11" HorizontalAlignment="Center"
+                           TextWrapping="Wrap" TextAlignment="Center"
+                           Text="{Binding StatusMessage}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="Click any device to set it as default output" />
+                            <Setter Property="Foreground" Value="#888888" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsSettingsOpen}" Value="True">
-                                    <Setter Property="Text" Value="Changes are saved automatically" />
+                                <DataTrigger Binding="{Binding StatusIsError}" Value="True">
+                                    <Setter Property="Foreground" Value="#E05050" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

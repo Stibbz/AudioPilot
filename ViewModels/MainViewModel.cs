@@ -26,8 +26,11 @@ namespace SwitchAudioDevices.ViewModels
     {
         private readonly AudioService    _audioService;
         private readonly SettingsService _settingsService;
-        private bool _launchAtStartup;
-        private bool _isSettingsOpen;
+        private bool   _launchAtStartup;
+        private bool   _isSettingsOpen;
+        private string _statusMessage = "";
+        private bool   _statusIsError;
+        private CancellationTokenSource? _statusCts;
 
         public ObservableCollection<AudioDevice>             Devices         { get; } = [];
         public ObservableCollection<SettingsDeviceViewModel> SettingsDevices { get; } = [];
@@ -36,6 +39,61 @@ namespace SwitchAudioDevices.ViewModels
         {
             get => _isSettingsOpen;
             set { _isSettingsOpen = value; OnPropertyChanged(); }
+        }
+
+        // ── Status bar ──────────────────────────────────────────────────────────
+
+        /// <summary>Non-empty while there is something worth showing in the footer.</summary>
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            private set
+            {
+                _statusMessage = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasStatus));
+            }
+        }
+
+        /// <summary>True when the status is an error (drives red colouring in XAML).</summary>
+        public bool StatusIsError
+        {
+            get => _statusIsError;
+            private set { _statusIsError = value; OnPropertyChanged(); }
+        }
+
+        public bool HasStatus => !string.IsNullOrEmpty(_statusMessage);
+
+        /// <summary>
+        /// Shows <paramref name="message"/> in the footer.
+        /// Pass <paramref name="autoCloseMs"/> = 0 to keep it until explicitly cleared.
+        /// </summary>
+        public void SetStatus(string message, bool isError = false, int autoCloseMs = 4000)
+        {
+            _statusCts?.Cancel();
+            StatusIsError  = isError;
+            StatusMessage  = message;
+
+            if (autoCloseMs <= 0) return;
+
+            _statusCts = new CancellationTokenSource();
+            var token  = _statusCts.Token;
+            _ = Task.Delay(autoCloseMs, token).ContinueWith(t =>
+            {
+                if (t.IsCanceled) return;
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = "";
+                    StatusIsError = false;
+                });
+            }, TaskScheduler.Default);
+        }
+
+        public void ClearStatus()
+        {
+            _statusCts?.Cancel();
+            StatusMessage = "";
+            StatusIsError = false;
         }
 
         public bool LaunchAtStartup
@@ -159,14 +217,31 @@ namespace SwitchAudioDevices.ViewModels
         {
             device.IsConnecting       = true;
             device.IsConnectionFailed = false;
+            SetStatus($"Connecting to {device.Name}…", isError: false, autoCloseMs: 0);
 
             await Task.Yield();
 
             bool started = await Task.Run(() =>
                 _audioService.ConnectBluetoothDevice(device.BluetoothAddress, device.Name));
 
-            var deadline = DateTime.UtcNow.AddSeconds(started ? 15 : 5);
+            if (!started)
+            {
+                // Bluetooth stack couldn't even find / reach the device — fail immediately.
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    device.IsConnecting       = false;
+                    device.IsConnectionFailed = true;
+                    LoadDevices();
+                    SetStatus($"Could not reach {device.Name} — make sure it is powered on", isError: true, autoCloseMs: 6000);
+                });
+                await Task.Delay(4000);
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    device.IsConnectionFailed = false);
+                return;
+            }
 
+            // Poll until the device shows up as connected (up to 15 s).
+            var deadline = DateTime.UtcNow.AddSeconds(15);
             while (DateTime.UtcNow < deadline)
             {
                 await Task.Delay(600);
@@ -178,25 +253,23 @@ namespace SwitchAudioDevices.ViewModels
                     {
                         _audioService.SetDefaultDevice(device.Id);
                         LoadDevices();
+                        SetStatus($"Connected to {device.Name}", isError: false, autoCloseMs: 3000);
                     });
                     return;
                 }
             }
 
+            // Timed out.
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                device.IsConnecting = false;
+                device.IsConnecting       = false;
+                device.IsConnectionFailed = true;
                 LoadDevices();
+                SetStatus($"Could not connect to {device.Name}", isError: true, autoCloseMs: 6000);
             });
-
-            await ShowConnectionFailed(device);
-        }
-
-        private static async Task ShowConnectionFailed(AudioDevice device)
-        {
-            device.IsConnectionFailed = true;
             await Task.Delay(4000);
-            device.IsConnectionFailed = false;
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                device.IsConnectionFailed = false);
         }
 
         private void ToggleSettingsDevice(string? deviceId)

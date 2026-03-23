@@ -3,6 +3,7 @@ using SwitchAudioDevices.ViewModels;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -107,8 +108,11 @@ namespace SwitchAudioDevices
 
             // Switch ContentContainer's row to Star so it fills the remaining window height.
             // With all-Auto rows the ScrollViewer has no finite height bound and never scrolls.
+            // UpdateLayout() forces WPF to compute the Star height synchronously so the
+            // ScrollViewer gets a real finite viewport before any animation or measure runs.
             var mainGrid = (Grid)ContentContainer.Parent;
             mainGrid.RowDefinitions[1].Height = new GridLength(1, GridUnitType.Star);
+            UpdateLayout();
 
             SettingsPanel.Visibility = Visibility.Visible;
             var width = ContentContainer.ActualWidth;
