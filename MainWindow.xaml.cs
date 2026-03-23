@@ -91,13 +91,17 @@ namespace SwitchAudioDevices
             _viewModel.IsSettingsOpen = true;
 
             SizeToContent = SizeToContent.Manual;
-            Height = 560;
 
-            // Set an explicit MaxHeight on the named ScrollViewer so it has a finite
-            // viewport to scroll within. Relying solely on Star-row propagation through
-            // two sibling panels sharing a container is unreliable in WPF's two-pass layout.
-            // Title bar ≈ 48 px, settings header ≈ 52 px → leave the rest for the scroll area.
-            SettingsScrollViewer.MaxHeight = Height - 100;
+            // Pin the window bottom above the tray and grow upward.
+            // Without this, Height = 560 expands the window DOWNWARD (Top is fixed by
+            // the OS), pushing the lower half of the settings panel behind the taskbar.
+            double prevBottom = Top + ActualHeight;
+            Height = 560;
+            Top = Math.Max(SystemParameters.WorkArea.Top, prevBottom - Height);
+
+            // Explicit MaxHeight so the ScrollViewer has a hard finite viewport regardless
+            // of how WPF propagates height constraints through the shared ContentContainer.
+            SettingsScrollViewer.MaxHeight = Height - 100; // 48 title + ~52 header
 
             SettingsPanel.Visibility = Visibility.Visible;
             var width = ContentContainer.ActualWidth;
@@ -105,8 +109,7 @@ namespace SwitchAudioDevices
             Animate(DeviceListTransform, TranslateTransform.XProperty, 0, -width);
             Animate(SettingsTransform,   TranslateTransform.XProperty, width, 0);
 
-            // IO (BT enum + WASAPI enum) runs on a thread-pool thread while the
-            // animation plays — the UI stays responsive and there is no visible delay.
+            // IO runs on a thread-pool thread while the animation plays.
             await _viewModel.LoadSettingsDevicesAsync();
         }
 
@@ -119,13 +122,17 @@ namespace SwitchAudioDevices
             var hideAnim = Animate(SettingsTransform, TranslateTransform.XProperty, 0, width);
             hideAnim.Completed += (s, e) =>
             {
-                SettingsPanel.Visibility        = Visibility.Collapsed;
-                SettingsScrollViewer.MaxHeight  = double.PositiveInfinity; // reset for next open
-                SizeToContent                   = SizeToContent.Height;
+                SettingsPanel.Visibility       = Visibility.Collapsed;
+                SettingsScrollViewer.MaxHeight = double.PositiveInfinity;
+                SizeToContent                  = SizeToContent.Height;
+
+                // Force a synchronous layout pass so ActualHeight reflects the
+                // now-smaller device list before we repin the window above the tray.
+                UpdateLayout();
+                Top = SystemParameters.WorkArea.Bottom - ActualHeight - 12;
             };
             Animate(DeviceListTransform, TranslateTransform.XProperty, -width, 0);
 
-            // Same pattern: IO while animation runs.
             await _viewModel.LoadDevicesAsync();
         }
 
