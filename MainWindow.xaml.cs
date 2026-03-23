@@ -105,6 +105,11 @@ namespace SwitchAudioDevices
             SizeToContent = SizeToContent.Manual;
             Height = 560;
 
+            // Switch ContentContainer's row to Star so it fills the remaining window height.
+            // With all-Auto rows the ScrollViewer has no finite height bound and never scrolls.
+            var mainGrid = (Grid)ContentContainer.Parent;
+            mainGrid.RowDefinitions[1].Height = new GridLength(1, GridUnitType.Star);
+
             SettingsPanel.Visibility = Visibility.Visible;
             var width = ContentContainer.ActualWidth;
 
@@ -123,6 +128,9 @@ namespace SwitchAudioDevices
             hideAnim.Completed += (s, e) =>
             {
                 SettingsPanel.Visibility = Visibility.Collapsed;
+                // Restore Auto so SizeToContent=Height works correctly for the device list.
+                var mainGrid = (Grid)ContentContainer.Parent;
+                mainGrid.RowDefinitions[1].Height = GridLength.Auto;
                 SizeToContent = SizeToContent.Height;
             };
             Animate(DeviceListTransform, TranslateTransform.XProperty, -width, 0);

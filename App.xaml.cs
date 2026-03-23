@@ -110,7 +110,9 @@ namespace SwitchAudioDevices
         private void OnTrayMouseClick(object? sender, MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left) return;
-            var pt = new System.Drawing.Point(e.X, e.Y);
+            // Cursor.Position is the only reliable source for tray icon screen coordinates.
+            // MouseEventArgs.X/Y from NotifyIcon can be 0,0 on some Windows configurations.
+            var pt = Cursor.Position;
             Dispatcher.Invoke(() => ShowMainWindow(pt));
         }
 

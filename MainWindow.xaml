@@ -610,7 +610,7 @@
                     </Grid.RenderTransform>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <Grid Margin="8,8,16,6">
@@ -625,7 +625,7 @@
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  Padding="16,0,16,8" MaxHeight="460">
+                                  Padding="16,0,16,8">
                         <StackPanel>
 
                             <TextBlock Text="AUDIO DEVICES" FontSize="10" FontWeight="Bold"
