@@ -395,7 +395,7 @@
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   Padding="16,0,16,0"
-                                  Height="{Binding DeviceScrollHeight}">
+                                  MaxHeight="{Binding DeviceScrollHeight}">
                         <StackPanel>
                             <ItemsControl ItemsSource="{Binding Devices}">
                                 <ItemsControl.ItemTemplate>

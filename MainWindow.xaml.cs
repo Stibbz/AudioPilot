@@ -23,6 +23,24 @@ namespace SwitchAudioDevices
             DataContext = _viewModel;
             Loaded           += OnLoaded;
             IsVisibleChanged += OnIsVisibleChanged;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        // Reacts to ItemsToShow changes so the window resizes while on the device list.
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(MainViewModel.DeviceScrollHeight)) return;
+            if (_viewModel.IsSettingsOpen) return;
+
+            // MaxHeight binding on the ScrollViewer raises InvalidateMeasure on the
+            // ScrollViewer, but SizeToContent=Height on the Window doesn't always pick
+            // that chain up after a Manual/Height toggle.  Calling InvalidateMeasure()
+            // on the Window directly forces a fresh top-down layout pass.
+            InvalidateMeasure();
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Top = SystemParameters.WorkArea.Bottom - ActualHeight - 12;
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e) => EnableDwmEffects();
@@ -124,11 +142,13 @@ namespace SwitchAudioDevices
                 SettingsPanel.Visibility = Visibility.Collapsed;
                 SizeToContent            = SizeToContent.Height;
 
-                // SizeToContent triggers an OS-level window resize that completes during
-                // WPF's Render pass (DispatcherPriority 7). Reading ActualHeight
-                // immediately (or after UpdateLayout) still sees the old value.
-                // Background priority (4) is scheduled AFTER Render, so by the time this
-                // callback runs the HWND has already been resized and ActualHeight is correct.
+                // Setting SizeToContent=Height after a Manual cycle doesn't always trigger
+                // a fresh layout pass on its own.  InvalidateMeasure() on the Window forces
+                // a full top-down re-measure so the window shrinks to fit the device list.
+                InvalidateMeasure();
+
+                // Background priority (4) runs after the Render pass (7) where the HWND
+                // has been resized, so ActualHeight is correct by the time this fires.
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
                     Top = SystemParameters.WorkArea.Bottom - ActualHeight - 12;
