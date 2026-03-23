@@ -104,12 +104,13 @@ namespace SwitchAudioDevices.Services
         }
 
         /// <summary>
-        /// Enables the A2DP and HFP service profiles for the paired device at
-        /// <paramref name="bluetoothAddress"/>, which causes Windows to initiate
-        /// a Bluetooth connection.  Returns true if at least one profile was
-        /// successfully enabled.
+        /// Enables the A2DP and HFP service profiles for the paired device, which causes
+        /// Windows to initiate a Bluetooth connection.  Matches by address when non-zero,
+        /// otherwise falls back to substring name matching.  Returns true if at least one
+        /// profile call succeeded (ERROR_SUCCESS = 0) or was already pending.
+        /// Error codes are written to Debug output to aid diagnosis.
         /// </summary>
-        public bool ConnectDevice(ulong bluetoothAddress)
+        public bool ConnectDevice(ulong bluetoothAddress, string? fallbackName = null)
         {
             try
             {
@@ -117,27 +118,49 @@ namespace SwitchAudioDevices.Services
                 var di = MakeDeviceInfo();
 
                 var hFind = BluetoothFindFirstDevice(ref sp, ref di);
-                if (hFind == IntPtr.Zero) return false;
+                if (hFind == IntPtr.Zero)
+                {
+                    System.Diagnostics.Debug.WriteLine("BT Connect: BluetoothFindFirstDevice returned NULL — no BT adapter or adapter disabled.");
+                    return false;
+                }
                 try
                 {
                     do
                     {
-                        if (di.Address != bluetoothAddress) continue;
+                        bool matched = bluetoothAddress != 0
+                            ? di.Address == bluetoothAddress
+                            : fallbackName != null && !string.IsNullOrWhiteSpace(di.szName) &&
+                              (di.szName.Contains(fallbackName, StringComparison.OrdinalIgnoreCase) ||
+                               fallbackName.Contains(di.szName, StringComparison.OrdinalIgnoreCase));
 
-                        // Found the device — close the find handle before the
-                        // SetServiceState calls (can't hold both simultaneously)
+                        if (!matched) continue;
+
+                        System.Diagnostics.Debug.WriteLine($"BT Connect: found '{di.szName}' addr={di.Address:X} connected={di.fConnected}");
+
+                        // Close the find handle before SetServiceState (can't hold both)
                         BluetoothFindDeviceClose(hFind);
                         hFind = IntPtr.Zero;
 
                         uint r1 = BluetoothSetServiceState(IntPtr.Zero, ref di, ref A2dpSink,  BLUETOOTH_SERVICE_ENABLE);
                         uint r2 = BluetoothSetServiceState(IntPtr.Zero, ref di, ref Handsfree, BLUETOOTH_SERVICE_ENABLE);
-                        return r1 == 0 || r2 == 0; // ERROR_SUCCESS = 0
+
+                        System.Diagnostics.Debug.WriteLine($"BT Connect: SetServiceState A2DP={r1} HFP={r2} (0=success, check winerror.h for others)");
+
+                        // ERROR_SUCCESS(0) on either profile means the request was accepted.
+                        // Some drivers return non-zero but still initiate the connection;
+                        // the caller should poll for actual connection state.
+                        return r1 == 0 || r2 == 0;
                     }
                     while (BluetoothFindNextDevice(hFind, ref di));
+
+                    System.Diagnostics.Debug.WriteLine($"BT Connect: no paired device matched addr={bluetoothAddress:X} name='{fallbackName}'");
                 }
                 finally { if (hFind != IntPtr.Zero) BluetoothFindDeviceClose(hFind); }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"BT Connect: exception — {ex.Message}");
+            }
             return false;
         }
 
