@@ -126,17 +126,27 @@ namespace SwitchAudioDevices
                 _mainWindow.Closed += (s, e) => _mainWindow = null;
             }
 
-            if (trayClickPoint.HasValue)
-                PositionNearTray(_mainWindow, trayClickPoint.Value);
-
             _mainWindow.Show();
             _mainWindow.WindowState = System.Windows.WindowState.Normal;
+
+            if (trayClickPoint.HasValue)
+            {
+                // UpdateLayout() forces WPF to measure the window so ActualHeight is
+                // correct before we compute the tray-relative position. Without this,
+                // ActualHeight is 0 on first show and the window spawns too high.
+                _mainWindow.UpdateLayout();
+                PositionNearTray(_mainWindow, trayClickPoint.Value);
+            }
+
             _mainWindow.Activate();
 
+            // NavigateToSettings/NavigateToDeviceList are now async Tasks.
+            // Fire-and-forget is intentional here: the animation and background load
+            // run independently; we don't need to await the result in App.
             if (openSettings)
-                _mainWindow.NavigateToSettings();
+                _ = _mainWindow.NavigateToSettings();
             else
-                _mainWindow.NavigateToDeviceList();
+                _ = _mainWindow.NavigateToDeviceList();
         }
 
         private static void PositionNearTray(MainWindow window, System.Drawing.Point clickPoint)
