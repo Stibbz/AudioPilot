@@ -34,15 +34,11 @@ namespace SwitchAudioDevices
 
         private void PlayShowAnimation()
         {
-            // Fade in
             Opacity = 0;
             BeginAnimation(OpacityProperty,
                 new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                });
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
 
-            // Slide up 10px from below
             if (RootBorder.RenderTransform is not TranslateTransform tt)
             {
                 tt = new TranslateTransform(0, 10);
@@ -52,9 +48,7 @@ namespace SwitchAudioDevices
 
             tt.BeginAnimation(TranslateTransform.YProperty,
                 new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(200))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-                });
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
 
         private void EnableDwmEffects()
@@ -70,19 +64,10 @@ namespace SwitchAudioDevices
             }
         }
 
-        // Hide to tray instead of closing
-        protected override void OnClosing(CancelEventArgs e)
-        {
-            e.Cancel = true;
-            Hide();
-        }
+        protected override void OnClosing(CancelEventArgs e) { e.Cancel = true; Hide(); }
 
         // Auto-hide when the window loses focus (tray popup behaviour)
-        protected override void OnDeactivated(EventArgs e)
-        {
-            base.OnDeactivated(e);
-            Hide();
-        }
+        protected override void OnDeactivated(EventArgs e) { base.OnDeactivated(e); Hide(); }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -94,56 +79,58 @@ namespace SwitchAudioDevices
 
         private void CloseButton_Click(object sender, RoutedEventArgs e) => Hide();
 
-        private void SettingsButton_Click(object sender, RoutedEventArgs e) => NavigateToSettings();
-        private void BackButton_Click(object sender, RoutedEventArgs e)    => NavigateToDeviceList();
+        // async void is correct for event handlers — exceptions surface via the dispatcher.
+        private async void SettingsButton_Click(object sender, RoutedEventArgs e) => await NavigateToSettings();
+        private async void BackButton_Click(object sender, RoutedEventArgs e)     => await NavigateToDeviceList();
 
-        public void NavigateToSettings()
+        // ── Navigation ──────────────────────────────────────────────────────────
+
+        public async Task NavigateToSettings()
         {
             if (_viewModel.IsSettingsOpen) return;
             _viewModel.IsSettingsOpen = true;
-            _viewModel.LoadSettingsDevices();
 
             SizeToContent = SizeToContent.Manual;
             Height = 560;
 
-            // Switch ContentContainer's row to Star so it fills the remaining window height.
-            // With all-Auto rows the ScrollViewer has no finite height bound and never scrolls.
-            // UpdateLayout() forces WPF to compute the Star height synchronously so the
-            // ScrollViewer gets a real finite viewport before any animation or measure runs.
-            var mainGrid = (Grid)ContentContainer.Parent;
-            mainGrid.RowDefinitions[1].Height = new GridLength(1, GridUnitType.Star);
-            UpdateLayout();
+            // Set an explicit MaxHeight on the named ScrollViewer so it has a finite
+            // viewport to scroll within. Relying solely on Star-row propagation through
+            // two sibling panels sharing a container is unreliable in WPF's two-pass layout.
+            // Title bar ≈ 48 px, settings header ≈ 52 px → leave the rest for the scroll area.
+            SettingsScrollViewer.MaxHeight = Height - 100;
 
             SettingsPanel.Visibility = Visibility.Visible;
             var width = ContentContainer.ActualWidth;
 
             Animate(DeviceListTransform, TranslateTransform.XProperty, 0, -width);
             Animate(SettingsTransform,   TranslateTransform.XProperty, width, 0);
+
+            // IO (BT enum + WASAPI enum) runs on a thread-pool thread while the
+            // animation plays — the UI stays responsive and there is no visible delay.
+            await _viewModel.LoadSettingsDevicesAsync();
         }
 
-        public void NavigateToDeviceList()
+        public async Task NavigateToDeviceList()
         {
             if (!_viewModel.IsSettingsOpen) return;
             _viewModel.IsSettingsOpen = false;
-            _viewModel.LoadDevices();
 
             var width    = ContentContainer.ActualWidth;
-            var hideAnim = Animate(SettingsTransform,   TranslateTransform.XProperty, 0, width);
+            var hideAnim = Animate(SettingsTransform, TranslateTransform.XProperty, 0, width);
             hideAnim.Completed += (s, e) =>
             {
-                SettingsPanel.Visibility = Visibility.Collapsed;
-                // Restore Auto so SizeToContent=Height works correctly for the device list.
-                var mainGrid = (Grid)ContentContainer.Parent;
-                mainGrid.RowDefinitions[1].Height = GridLength.Auto;
-                SizeToContent = SizeToContent.Height;
+                SettingsPanel.Visibility        = Visibility.Collapsed;
+                SettingsScrollViewer.MaxHeight  = double.PositiveInfinity; // reset for next open
+                SizeToContent                   = SizeToContent.Height;
             };
             Animate(DeviceListTransform, TranslateTransform.XProperty, -width, 0);
+
+            // Same pattern: IO while animation runs.
+            await _viewModel.LoadDevicesAsync();
         }
 
         private static DoubleAnimation Animate(
-            TranslateTransform target,
-            DependencyProperty property,
-            double from, double to)
+            TranslateTransform target, DependencyProperty property, double from, double to)
         {
             var anim = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(260))
             {
