@@ -93,15 +93,19 @@ namespace SwitchAudioDevices
             SizeToContent = SizeToContent.Manual;
 
             // Pin the window bottom above the tray and grow upward.
-            // Without this, Height = 560 expands the window DOWNWARD (Top is fixed by
-            // the OS), pushing the lower half of the settings panel behind the taskbar.
+            // Without this, the window expands DOWNWARD (the OS keeps Top fixed),
+            // pushing the lower half of the settings panel behind the taskbar.
             double prevBottom = Top + ActualHeight;
-            Height = 560;
-            Top = Math.Max(SystemParameters.WorkArea.Top, prevBottom - Height);
 
-            // Explicit MaxHeight so the ScrollViewer has a hard finite viewport regardless
-            // of how WPF propagates height constraints through the shared ContentContainer.
-            SettingsScrollViewer.MaxHeight = Height - 100; // 48 title + ~52 header
+            // Target 560 DIPs but cap so we never overflow the top of the working area.
+            double availableH = prevBottom - SystemParameters.WorkArea.Top - 12;
+            Height = Math.Min(560, availableH);
+            Top    = Math.Max(SystemParameters.WorkArea.Top, prevBottom - Height);
+
+            // Hard MaxHeight so the ScrollViewer always has a finite viewport to scroll
+            // within, regardless of how WPF propagates constraints through the shared
+            // ContentContainer. (48 title + ~52 settings header = 100 chrome px.)
+            SettingsScrollViewer.MaxHeight = Height - 100;
 
             SettingsPanel.Visibility = Visibility.Visible;
             var width = ContentContainer.ActualWidth;
@@ -126,10 +130,15 @@ namespace SwitchAudioDevices
                 SettingsScrollViewer.MaxHeight = double.PositiveInfinity;
                 SizeToContent                  = SizeToContent.Height;
 
-                // Force a synchronous layout pass so ActualHeight reflects the
-                // now-smaller device list before we repin the window above the tray.
-                UpdateLayout();
-                Top = SystemParameters.WorkArea.Bottom - ActualHeight - 12;
+                // SizeToContent triggers an OS-level window resize that completes during
+                // WPF's Render pass (DispatcherPriority 7). Reading ActualHeight
+                // immediately (or after UpdateLayout) still sees the old 560px value.
+                // Background priority (4) is scheduled AFTER Render, so by the time this
+                // callback runs the HWND has already been resized and ActualHeight is correct.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Top = SystemParameters.WorkArea.Bottom - ActualHeight - 12;
+                }), System.Windows.Threading.DispatcherPriority.Background);
             };
             Animate(DeviceListTransform, TranslateTransform.XProperty, -width, 0);
 
