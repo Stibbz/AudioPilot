@@ -96,6 +96,30 @@ namespace SwitchAudioDevices.ViewModels
             StatusIsError = false;
         }
 
+        // ── Items-to-show / scroll height ───────────────────────────────────────
+
+        private const double CardHeight = 82.0;
+        private const int    MinItems   = 1;
+        private const int    MaxItems   = 10;
+
+        /// <summary>How many device cards are visible before scrolling kicks in.</summary>
+        public int ItemsToShow
+        {
+            get => _settingsService.Settings.ItemsToShow;
+            set
+            {
+                var clamped = Math.Clamp(value, MinItems, MaxItems);
+                if (_settingsService.Settings.ItemsToShow == clamped) return;
+                _settingsService.Settings.ItemsToShow = clamped;
+                _settingsService.Save();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DeviceScrollHeight));
+            }
+        }
+
+        /// <summary>Pixel height of the device-list ScrollViewer (ItemsToShow × CardHeight).</summary>
+        public double DeviceScrollHeight => ItemsToShow * CardHeight;
+
         public bool LaunchAtStartup
         {
             get => _launchAtStartup;
@@ -114,6 +138,8 @@ namespace SwitchAudioDevices.ViewModels
         public ICommand RefreshCommand              { get; }
         public ICommand ToggleSettingsDeviceCommand { get; }
         public ICommand ToggleStartupCommand        { get; }
+        public ICommand IncrItemsCommand            { get; }
+        public ICommand DecrItemsCommand            { get; }
 
         public MainViewModel(AudioService audioService, SettingsService settingsService)
         {
@@ -125,6 +151,8 @@ namespace SwitchAudioDevices.ViewModels
             RefreshCommand              = new RelayCommand(LoadDevices);
             ToggleSettingsDeviceCommand = new RelayCommand<string>(ToggleSettingsDevice);
             ToggleStartupCommand        = new RelayCommand(() => LaunchAtStartup = !LaunchAtStartup);
+            IncrItemsCommand            = new RelayCommand(() => ItemsToShow++);
+            DecrItemsCommand            = new RelayCommand(() => ItemsToShow--);
 
             LoadDevices();
         }

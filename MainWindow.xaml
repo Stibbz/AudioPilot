@@ -394,7 +394,8 @@
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  Padding="16,0,16,0" MaxHeight="216">
+                                  Padding="16,0,16,0"
+                                  Height="{Binding DeviceScrollHeight}">
                         <StackPanel>
                             <ItemsControl ItemsSource="{Binding Devices}">
                                 <ItemsControl.ItemTemplate>
@@ -623,8 +624,9 @@
                                    Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
 
-                    <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                    <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Visible"
                                   HorizontalScrollBarVisibility="Disabled"
+                                  Height="420"
                                   Padding="16,0,16,8">
                         <StackPanel>
 
@@ -734,6 +736,47 @@
                                     </TextBlock>
                                 </Grid>
                             </Button>
+
+                            <!-- Items to show -->
+                            <Border Background="#222222" BorderBrush="#2E2E2E" BorderThickness="1"
+                                    CornerRadius="10" Padding="14,12" Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Width="36" Height="36" CornerRadius="8"
+                                            VerticalAlignment="Center" Background="#2A2A2A">
+                                        <TextBlock Text="&#xE8FD;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Foreground="#555555" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Items shown" FontSize="13" FontWeight="Medium" Foreground="#EBEBEB" />
+                                        <TextBlock Text="Visible devices before scrolling" FontSize="11"
+                                                   Foreground="#555555" Margin="0,2,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Command="{Binding DecrItemsCommand}" Width="28" Height="28"
+                                                Style="{StaticResource IconButtonStyle}" ToolTip="Show fewer">
+                                            <TextBlock Text="&#xE108;" FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="12" Foreground="#888888" />
+                                        </Button>
+                                        <TextBlock Text="{Binding ItemsToShow}" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="#EBEBEB" VerticalAlignment="Center"
+                                                   MinWidth="22" TextAlignment="Center" Margin="4,0" />
+                                        <Button Command="{Binding IncrItemsCommand}" Width="28" Height="28"
+                                                Style="{StaticResource IconButtonStyle}" ToolTip="Show more">
+                                            <TextBlock Text="&#xE109;" FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="12" Foreground="#888888" />
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
 
                         </StackPanel>
                     </ScrollViewer>
