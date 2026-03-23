@@ -11,7 +11,8 @@ namespace SwitchAudioDevices.Services
         bool   IsDefault,
         bool   IsBluetooth,
         bool   IsBluetoothConnected,
-        ulong  BluetoothAddress);
+        ulong  BluetoothAddress,
+        float  Volume);
 
     public class AudioService : IDisposable
     {
@@ -31,40 +32,42 @@ namespace SwitchAudioDevices.Services
             var btDevices = _bt.GetPairedDevices();
             var result    = new List<AudioEndpointInfo>();
 
-            // DeviceState.All = Active | Disabled | NotPresent | Unplugged (0xF)
-            // On Windows 11 paired-but-disconnected BT devices can appear as
-            // either Unplugged (0x8) or NotPresent (0x4) depending on driver/version.
-            // Enumerating All and checking .State covers both.
             foreach (var ep in _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.All))
             {
                 var isActive       = ep.State == DeviceState.Active;
                 var isDisconnected = ep.State is DeviceState.Unplugged or DeviceState.NotPresent;
 
-                if (!isActive && !isDisconnected) continue;   // skip Disabled
+                if (!isActive && !isDisconnected) continue;
 
-                var btMatch  = MatchBluetooth(ep.FriendlyName, btDevices);
+                var btMatch    = MatchBluetooth(ep.FriendlyName, btDevices);
                 var isBtByProp = btMatch == null && IsBluetoothByProperty(ep);
+
+                float volume = 0f;
+                if (isActive)
+                {
+                    try { volume = ep.AudioEndpointVolume.MasterVolumeLevelScalar; }
+                    catch { }
+                }
 
                 if (isActive)
                 {
-                    // All active render endpoints — wired, USB, and connected BT
                     bool isBt = btMatch != null || isBtByProp;
                     result.Add(new AudioEndpointInfo(
                         ep.ID, ep.FriendlyName, ep.ID == defaultId,
                         IsBluetooth:          isBt,
                         IsBluetoothConnected: isBt,
-                        BluetoothAddress:     btMatch?.Address ?? 0));
+                        BluetoothAddress:     btMatch?.Address ?? 0,
+                        Volume:               volume));
                 }
                 else if (btMatch != null || isBtByProp)
                 {
-                    // Disconnected BT device — show with "Connect" badge
                     result.Add(new AudioEndpointInfo(
                         ep.ID, ep.FriendlyName, ep.ID == defaultId,
                         IsBluetooth:          true,
                         IsBluetoothConnected: false,
-                        BluetoothAddress:     btMatch?.Address ?? 0));
+                        BluetoothAddress:     btMatch?.Address ?? 0,
+                        Volume:               0f));
                 }
-                // Non-BT Unplugged/NotPresent endpoints are excluded
             }
 
             return result;
@@ -90,9 +93,19 @@ namespace SwitchAudioDevices.Services
             policy.SetDefaultEndpoint(deviceId, Role.Communications);
         }
 
-        /// <summary>Triggers a Bluetooth connection for the paired device at the given address.</summary>
-        public bool ConnectBluetoothDevice(ulong bluetoothAddress)
-            => _bt.ConnectDevice(bluetoothAddress);
+        public void SetDeviceVolume(string deviceId, float volume)
+        {
+            try
+            {
+                var ep = _enumerator.GetDevice(deviceId);
+                if (ep != null)
+                    ep.AudioEndpointVolume.MasterVolumeLevelScalar = Math.Clamp(volume, 0f, 1f);
+            }
+            catch { }
+        }
+
+        public bool ConnectBluetoothDevice(ulong bluetoothAddress, string deviceName)
+            => _bt.ConnectDevice(bluetoothAddress, deviceName);
 
         public void Dispose() => _enumerator.Dispose();
 
@@ -104,30 +117,18 @@ namespace SwitchAudioDevices.Services
             catch { return null; }
         }
 
-        /// <summary>
-        /// Finds the best matching paired BT device for an audio endpoint name.
-        /// Matching is bidirectional substring (case-insensitive) so both
-        /// "AirPods Pro" ↔ "AirPods Pro Stereo" and exact names work.
-        /// </summary>
         private static BluetoothDeviceInfo? MatchBluetooth(
             string endpointName, IReadOnlyList<BluetoothDeviceInfo> btDevices)
             => btDevices
                 .Where(bt =>
                     endpointName.Contains(bt.Name, StringComparison.OrdinalIgnoreCase) ||
                     bt.Name.Contains(endpointName, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(bt => bt.Name.Length)    // prefer more specific match
+                .OrderByDescending(bt => bt.Name.Length)
                 .FirstOrDefault();
 
-        // DEVPKEY_Device_InstanceId  {b3f8fa53-0004-438e-9003-51a46e139bfc}, 2
-        // The PnP instance ID for a BT audio device contains "BTHENUM" or "BTHLE".
         private static readonly PropertyKey InstanceIdKey =
             new(new Guid("b3f8fa53-0004-438e-9003-51a46e139bfc"), 2);
 
-        /// <summary>
-        /// Fallback BT detection: reads the underlying PnP device instance ID from
-        /// the audio endpoint's property store and checks for Bluetooth bus prefixes.
-        /// Works even when bthprops.cpl enumeration returns nothing.
-        /// </summary>
         private static bool IsBluetoothByProperty(MMDevice ep)
         {
             try
