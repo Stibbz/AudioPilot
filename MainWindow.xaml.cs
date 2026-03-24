@@ -27,9 +27,14 @@ namespace SwitchAudioDevices
 
         private void OnLoaded(object sender, RoutedEventArgs e) => EnableDwmEffects();
 
-        private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        private async void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            if ((bool)e.NewValue) PlayShowAnimation();
+            if (!(bool)e.NewValue) return;
+            PlayShowAnimation();
+            // Refresh the device list in the background every time the window appears.
+            // IO runs on a thread-pool thread so the animation is never blocked.
+            if (!_viewModel.IsSettingsOpen)
+                await _viewModel.LoadDevicesAsync();
         }
 
         // ── Window sizing ──────────────────────────────────────────────────────

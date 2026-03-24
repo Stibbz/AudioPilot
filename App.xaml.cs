@@ -140,13 +140,8 @@ namespace SwitchAudioDevices
 
             _mainWindow.Activate();
 
-            // NavigateToSettings/NavigateToDeviceList are now async Tasks.
-            // Fire-and-forget is intentional here: the animation and background load
-            // run independently; we don't need to await the result in App.
             if (openSettings)
                 _ = _mainWindow.NavigateToSettings();
-            else
-                _ = _mainWindow.NavigateToDeviceList();
         }
 
         private static void PositionNearTray(MainWindow window, System.Drawing.Point clickPoint)

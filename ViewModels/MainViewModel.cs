@@ -233,7 +233,7 @@ namespace SwitchAudioDevices.ViewModels
             var next         = active[nextIndex];
 
             SwitchDefault(next.Id);
-            LoadDevices();
+            _ = LoadDevicesAsync();
         }
 
         // ── Device action ───────────────────────────────────────────────────────
@@ -287,7 +287,7 @@ namespace SwitchAudioDevices.ViewModels
             var deadline = DateTime.UtcNow.AddSeconds(15);
             while (DateTime.UtcNow < deadline)
             {
-                await Task.Delay(600);
+                await Task.Delay(1500);
 
                 var fresh = await Task.Run(() => _audioService.GetAllEndpoints());
                 if (fresh.FirstOrDefault(d => d.Id == device.Id)?.IsBluetoothConnected == true)
@@ -322,7 +322,7 @@ namespace SwitchAudioDevices.ViewModels
             if (item == null) return;
             item.IsEnabled = !item.IsEnabled;
             _settingsService.SetDeviceEnabled(deviceId, item.IsEnabled);
-            LoadDevices();
+            _ = LoadDevicesAsync();
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
