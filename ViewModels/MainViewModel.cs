@@ -413,6 +413,9 @@ namespace SwitchAudioDevices.ViewModels
                     {
                         _audioService.SetDefaultDevice(device.Id);
                         LoadDevices();
+                        // WASAPI can lag reporting the new default after a BT connect;
+                        // force the flag so the UI reflects the switch immediately.
+                        foreach (var d in Devices) d.IsDefault = d.Id == device.Id;
                         SetStatus($"Connected to {device.Name}", isError: false, autoCloseMs: 3000);
                     });
                     return;
