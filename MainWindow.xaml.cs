@@ -148,10 +148,15 @@ namespace SwitchAudioDevices
         {
             if (!_viewModel.IsSettingsOpen) return;
 
-            _viewModel.IsSettingsOpen        = false;
-            SettingsPanel.Visibility         = Visibility.Collapsed;
-            DeviceListTransform.X            = 0;
-            SettingsTransform.X              = ActualWidth;
+            _viewModel.IsSettingsOpen = false;
+            SettingsPanel.Visibility  = Visibility.Collapsed;
+
+            // WPF animations hold their final value and override local assignments.
+            // BeginAnimation(null) releases that hold so the direct assignment below takes effect.
+            DeviceListTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            SettingsTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            DeviceListTransform.X = 0;
+            SettingsTransform.X   = ActualWidth;
 
             // Force SizeToContent to re-measure so the window shrinks back down.
             SizeToContent = SizeToContent.Manual;
