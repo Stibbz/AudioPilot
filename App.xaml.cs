@@ -110,10 +110,26 @@ namespace SwitchAudioDevices
             _ = Dispatcher.InvokeAsync(async () =>
             {
                 if (_mainWindow?.ViewModel is { } vm)
-                    await vm.CycleAsync(hotkeyId == HotkeyService.IdNext ? 1 : -1);
+                {
+                    var (outcome, name) = await vm.CycleAsync(hotkeyId == HotkeyService.IdNext ? 1 : -1);
+
+                    if (outcome == MainViewModel.CycleOutcome.Switched)
+                        Notify($"Switched to {name}");
+                    else if (outcome == MainViewModel.CycleOutcome.BtFailed)
+                        Notify($"Could not connect to {name}", isError: true);
+                }
                 UpdateTrayTooltip();
                 RefreshContextMenu();
             });
+        }
+
+        private void Notify(string message, bool isError = false)
+        {
+            _trayIcon.ShowBalloonTip(
+                timeout: 4000,
+                tipTitle: "Audio Switcher",
+                tipText:  message,
+                tipIcon:  isError ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }
 
         // ── Tray click ──────────────────────────────────────────────────────────

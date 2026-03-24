@@ -269,18 +269,21 @@ namespace SwitchAudioDevices.ViewModels
 
         // ── Cycle device (hotkey) ────────────────────────────────────────────────
 
+        public enum CycleOutcome { Switched, BtFailed, NoDevices }
+
         /// <summary>
-        /// Cycles one step in <paramref name="direction"/> (+1 = next, -1 = previous).
-        /// If the target device is a disconnected Bluetooth device, a silent connection
-        /// attempt is made first; the switch only happens if it succeeds.
+        /// Cycles one step in <paramref name="direction"/> (+1 = next, -1 = previous)
+        /// through the enabled device list only.
+        /// If the target is a disconnected Bluetooth device, a silent connection attempt
+        /// is made; the switch only happens if it succeeds within 15 seconds.
         /// </summary>
-        public async Task CycleAsync(int direction)
+        public async Task<(CycleOutcome Outcome, string DeviceName)> CycleAsync(int direction)
         {
             var list = Devices.ToList();
-            if (list.Count < 2) return;
+            if (list.Count < 2) return (CycleOutcome.NoDevices, "");
 
             int cur = list.FindIndex(d => d.IsDefault);
-            if (cur < 0) return;
+            if (cur < 0) return (CycleOutcome.NoDevices, "");
 
             int n      = list.Count;
             int target = ((cur + direction) % n + n) % n;
@@ -289,11 +292,12 @@ namespace SwitchAudioDevices.ViewModels
             if (device.IsBluetooth && !device.IsBluetoothConnected)
             {
                 bool connected = await TryConnectSilentAsync(device);
-                if (!connected) return; // stay on current device
+                if (!connected) return (CycleOutcome.BtFailed, device.Name);
             }
 
             SwitchDefault(device.Id);
             _ = LoadDevicesAsync();
+            return (CycleOutcome.Switched, device.Name);
         }
 
         /// <summary>
