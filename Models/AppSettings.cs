@@ -6,7 +6,5 @@ namespace SwitchAudioDevices.Models
         public HashSet<string> DisabledDeviceIds { get; set; } = [];
         public bool LaunchAtStartup { get; set; } = false;
 
-        /// <summary>Number of device cards visible before scrolling (default 3).</summary>
-        public int ItemsToShow { get; set; } = 3;
     }
 }
