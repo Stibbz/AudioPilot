@@ -271,6 +271,12 @@ namespace SwitchAudioDevices
             SizeToContent = SizeToContent.Height;
         }
 
+        private void TestSoundButton_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true; // prevent the click bubbling up to the card button
+            System.Media.SystemSounds.Asterisk.Play();
+        }
+
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ClickCount == 2)

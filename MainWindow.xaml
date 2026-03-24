@@ -128,8 +128,9 @@
                                                                Style="{StaticResource DeviceSubtitleStyle}" />
                                                 </StackPanel>
 
-                                                <!-- ── Status badges ─────────────────────────────────────── -->
-                                                <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                <!-- ── Status badges + test sound ───────────────────────── -->
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Grid>
 
                                                     <!-- Active (this device is the default output) -->
                                                     <Border CornerRadius="10" Padding="8,4">
@@ -252,6 +253,26 @@
                                                     </Border>
 
                                                 </Grid>
+
+                                                <!-- Test sound button — only shown for the active device -->
+                                                <Button Width="28" Height="28" Margin="6,0,0,0"
+                                                        ToolTip="Play test sound"
+                                                        Click="TestSoundButton_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsDefault}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets"
+                                                               FontSize="12" Foreground="#4A90D9" />
+                                                </Button>
+
+                                                </StackPanel>
                                                 <!-- ── end badges ─── -->
 
                                                 <!-- Volume slider - hidden for disconnected BT devices -->
