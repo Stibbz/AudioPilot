@@ -12,14 +12,24 @@ namespace SwitchAudioDevices
 
         private readonly AudioService    _audioService    = new();
         private readonly SettingsService _settingsService = new();
-        private readonly HotkeyService   _hotkeyService   = new();
+        private readonly HotkeyService _hotkeyService = new();
+        public  HotkeyService HotkeyService => _hotkeyService;
 
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
             InitializeTrayIcon();
-
+            RegisterSavedHotkeys();
             _hotkeyService.HotkeyPressed += OnHotkeyPressed;
+        }
+
+        private void RegisterSavedHotkeys()
+        {
+            var s = _settingsService.Settings;
+            if (s.HotkeyNext?.IsSet == true)
+                _hotkeyService.Register(HotkeyService.IdNext, s.HotkeyNext.Modifiers, s.HotkeyNext.VirtualKey);
+            if (s.HotkeyPrev?.IsSet == true)
+                _hotkeyService.Register(HotkeyService.IdPrev, s.HotkeyPrev.Modifiers, s.HotkeyPrev.VirtualKey);
         }
 
         // ── Tray icon ───────────────────────────────────────────────────────────
@@ -95,11 +105,12 @@ namespace SwitchAudioDevices
 
         // ── Hotkey ──────────────────────────────────────────────────────────────
 
-        private void OnHotkeyPressed()
+        private void OnHotkeyPressed(int hotkeyId)
         {
-            Dispatcher.Invoke(() =>
+            _ = Dispatcher.InvokeAsync(async () =>
             {
-                _mainWindow?.ViewModel.CycleDevice();
+                if (_mainWindow?.ViewModel is { } vm)
+                    await vm.CycleAsync(hotkeyId == HotkeyService.IdNext ? 1 : -1);
                 UpdateTrayTooltip();
                 RefreshContextMenu();
             });

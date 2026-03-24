@@ -217,23 +217,104 @@ namespace SwitchAudioDevices.ViewModels
             }
         }
 
+        // ── Hotkey bindings ──────────────────────────────────────────────────────
+
+        // Mirror HotkeyService constants to avoid a hard dependency in the ViewModel.
+        private const int HotkeyIdNext = HotkeyService.IdNext;
+        private const int HotkeyIdPrev = HotkeyService.IdPrev;
+
+        private int _recordingHotkeyId; // 0 = not recording
+
+        /// <summary>Display text for the Next-device hotkey button.</summary>
+        public string HotkeyNextText =>
+            _recordingHotkeyId == HotkeyIdNext
+                ? "Press keys…"
+                : (_settingsService.Settings.HotkeyNext?.DisplayText ?? "Not set");
+
+        /// <summary>Display text for the Prev-device hotkey button.</summary>
+        public string HotkeyPrevText =>
+            _recordingHotkeyId == HotkeyIdPrev
+                ? "Press keys…"
+                : (_settingsService.Settings.HotkeyPrev?.DisplayText ?? "Not set");
+
+        internal void BeginHotkeyRecording(int id)
+        {
+            _recordingHotkeyId = id;
+            OnPropertyChanged(nameof(HotkeyNextText));
+            OnPropertyChanged(nameof(HotkeyPrevText));
+        }
+
+        internal void EndHotkeyRecording()
+        {
+            _recordingHotkeyId = 0;
+            OnPropertyChanged(nameof(HotkeyNextText));
+            OnPropertyChanged(nameof(HotkeyPrevText));
+        }
+
+        /// <summary>Saves a hotkey binding to settings (null = clear).</summary>
+        public void SetHotkey(int id, HotkeyBinding? binding)
+        {
+            if (id == HotkeyIdNext) _settingsService.Settings.HotkeyNext = binding;
+            else                    _settingsService.Settings.HotkeyPrev = binding;
+            _settingsService.Save();
+            OnPropertyChanged(nameof(HotkeyNextText));
+            OnPropertyChanged(nameof(HotkeyPrevText));
+        }
+
+        /// <summary>Returns the saved binding for the given hotkey ID.</summary>
+        internal HotkeyBinding? GetHotkeyBinding(int id) =>
+            id == HotkeyIdNext
+                ? _settingsService.Settings.HotkeyNext
+                : _settingsService.Settings.HotkeyPrev;
+
         // ── Cycle device (hotkey) ────────────────────────────────────────────────
 
         /// <summary>
-        /// Switches to the next enabled, connected device in the list.
-        /// Disconnected Bluetooth devices are skipped.
+        /// Cycles one step in <paramref name="direction"/> (+1 = next, -1 = previous).
+        /// If the target device is a disconnected Bluetooth device, a silent connection
+        /// attempt is made first; the switch only happens if it succeeds.
         /// </summary>
-        public void CycleDevice()
+        public async Task CycleAsync(int direction)
         {
-            var active = Devices.Where(d => !d.IsBluetooth || d.IsBluetoothConnected).ToList();
-            if (active.Count < 2) return;
+            var list = Devices.ToList();
+            if (list.Count < 2) return;
 
-            var currentIndex = active.FindIndex(d => d.IsDefault);
-            var nextIndex    = (currentIndex + 1) % active.Count;
-            var next         = active[nextIndex];
+            int cur = list.FindIndex(d => d.IsDefault);
+            if (cur < 0) return;
 
-            SwitchDefault(next.Id);
+            int n      = list.Count;
+            int target = ((cur + direction) % n + n) % n;
+            var device = list[target];
+
+            if (device.IsBluetooth && !device.IsBluetoothConnected)
+            {
+                bool connected = await TryConnectSilentAsync(device);
+                if (!connected) return; // stay on current device
+            }
+
+            SwitchDefault(device.Id);
             _ = LoadDevicesAsync();
+        }
+
+        /// <summary>
+        /// Attempts a Bluetooth connection without updating any UI state.
+        /// Returns true if the device shows as connected within 15 seconds.
+        /// </summary>
+        private async Task<bool> TryConnectSilentAsync(AudioDevice device)
+        {
+            bool started = await Task.Run(() =>
+                _audioService.ConnectBluetoothDevice(device.BluetoothAddress, device.Name));
+            if (!started) return false;
+
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(1500);
+                var endpoints = await Task.Run(() => _audioService.GetAllEndpoints());
+                if (endpoints.FirstOrDefault(e => e.Id == device.Id)?.IsBluetoothConnected == true)
+                    return true;
+            }
+            return false;
         }
 
         // ── Device action ───────────────────────────────────────────────────────

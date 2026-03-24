@@ -4,41 +4,59 @@ using System.Windows.Forms;
 namespace SwitchAudioDevices.Services
 {
     /// <summary>
-    /// Registers a system-wide hotkey (Ctrl+Alt+S) and fires <see cref="HotkeyPressed"/>
-    /// whenever it is detected.  Uses a message-only NativeWindow so no visible window
-    /// is required.
+    /// Registers system-wide hotkeys and fires <see cref="HotkeyPressed"/> with the
+    /// hotkey ID whenever one is detected.  Uses a message-only NativeWindow so no
+    /// visible window is required.  Hotkeys are registered dynamically via <see cref="Register"/>.
     /// </summary>
     public sealed class HotkeyService : IDisposable
     {
-        [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-        [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+        [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
         private const int WM_HOTKEY = 0x0312;
-        private const int HotkeyId  = 9001;
 
-        // Modifier flags
-        private const uint MOD_ALT     = 0x0001;
-        private const uint MOD_CONTROL = 0x0002;
+        /// <summary>Hotkey ID for "cycle to next device".</summary>
+        public const int IdNext = 9001;
+        /// <summary>Hotkey ID for "cycle to previous device".</summary>
+        public const int IdPrev = 9002;
 
-        // Virtual key for S
-        private const uint VK_S = 0x53;
-
-        public event Action? HotkeyPressed;
+        /// <summary>Fired on the thread that owns the message window (not the UI thread).</summary>
+        public event Action<int>? HotkeyPressed;
 
         private readonly HotkeyWindow _window;
-        public readonly bool IsRegistered;
+        private readonly HashSet<int> _registered = [];
 
-        public HotkeyService()
+        public HotkeyService() => _window = new HotkeyWindow(this);
+
+        /// <summary>
+        /// Registers (or re-registers) a hotkey.  Returns true on success.
+        /// Silently unregisters any previous registration for the same <paramref name="id"/> first.
+        /// </summary>
+        public bool Register(int id, uint modifiers, uint vk)
         {
-            _window = new HotkeyWindow(this);
-            IsRegistered = RegisterHotKey(_window.Handle, HotkeyId, MOD_CONTROL | MOD_ALT, VK_S);
-            if (!IsRegistered)
-                System.Diagnostics.Debug.WriteLine("HotkeyService: RegisterHotKey failed — Ctrl+Alt+S may be in use by another app.");
+            // Always unregister first so we can cleanly re-bind.
+            if (_registered.Remove(id))
+                UnregisterHotKey(_window.Handle, id);
+
+            if (vk == 0) return false;
+
+            bool ok = RegisterHotKey(_window.Handle, id, modifiers, vk);
+            if (ok) _registered.Add(id);
+            return ok;
+        }
+
+        /// <summary>Unregisters a hotkey without disposing the service.</summary>
+        public void Unregister(int id)
+        {
+            if (_registered.Remove(id))
+                UnregisterHotKey(_window.Handle, id);
         }
 
         public void Dispose()
         {
-            UnregisterHotKey(_window.Handle, HotkeyId);
+            foreach (var id in _registered)
+                UnregisterHotKey(_window.Handle, id);
+            _registered.Clear();
             _window.DestroyHandle();
         }
 
@@ -49,15 +67,14 @@ namespace SwitchAudioDevices.Services
             public HotkeyWindow(HotkeyService owner)
             {
                 _owner = owner;
-                // Message-only window — no taskbar entry, no visible window
-                var cp = new CreateParams { Parent = new IntPtr(-3) /* HWND_MESSAGE */ };
-                CreateHandle(cp);
+                // Message-only window — no taskbar entry, no visible window.
+                CreateHandle(new CreateParams { Parent = new IntPtr(-3) /* HWND_MESSAGE */ });
             }
 
             protected override void WndProc(ref Message m)
             {
-                if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == HotkeyId)
-                    _owner.HotkeyPressed?.Invoke();
+                if (m.Msg == WM_HOTKEY)
+                    _owner.HotkeyPressed?.Invoke(m.WParam.ToInt32());
                 else
                     base.WndProc(ref m);
             }

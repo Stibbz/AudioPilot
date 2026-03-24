@@ -434,6 +434,59 @@
                                 </Grid>
                             </Button>
 
+                            <TextBlock Text="HOTKEYS" FontSize="10" FontWeight="Bold"
+                                       Foreground="#555555" Margin="4,16,0,8" />
+
+                            <!-- Next device -->
+                            <Border Background="#222222" BorderBrush="#2E2E2E" BorderThickness="1"
+                                    CornerRadius="10" Padding="14,12" Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="36" Height="36" CornerRadius="8" Background="#2A2A2A" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE893;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#555555" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Next device" FontSize="13" FontWeight="Medium" Foreground="#EBEBEB" />
+                                        <TextBlock Text="Esc to cancel  ·  Del to clear"
+                                                   FontSize="10" Foreground="#444444" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <Button x:Name="HotkeyNextButton" Grid.Column="2"
+                                            Content="{Binding HotkeyNextText}"
+                                            Click="HotkeyNextButton_Click"
+                                            Style="{StaticResource HotkeyButtonStyle}" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Previous device -->
+                            <Border Background="#222222" BorderBrush="#2E2E2E" BorderThickness="1"
+                                    CornerRadius="10" Padding="14,12" Margin="0,0,0,6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="36" Height="36" CornerRadius="8" Background="#2A2A2A" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE892;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#555555" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Previous device" FontSize="13" FontWeight="Medium" Foreground="#EBEBEB" />
+                                        <TextBlock Text="Esc to cancel  ·  Del to clear"
+                                                   FontSize="10" Foreground="#444444" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <Button x:Name="HotkeyPrevButton" Grid.Column="2"
+                                            Content="{Binding HotkeyPrevText}"
+                                            Click="HotkeyPrevButton_Click"
+                                            Style="{StaticResource HotkeyButtonStyle}" />
+                                </Grid>
+                            </Border>
+
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

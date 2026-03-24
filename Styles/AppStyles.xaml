@@ -257,6 +257,47 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ══ Hotkey badge button ═════════════════════════════════════════════════ -->
+    <!--
+        Shows the current key combo (e.g. "Ctrl+Alt+N") or "Not set".
+        Set Tag="recording" from code-behind to display the amber capture state.
+    -->
+    <Style x:Key="HotkeyButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="#888888" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontFamily" Value="Consolas, Courier New" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MinWidth" Value="72" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" Background="#1A1A1A" BorderBrush="#3A3A3A"
+                            BorderThickness="1" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <TextBlock x:Name="Txt"
+                                   Text="{TemplateBinding Content}"
+                                   FontFamily="{TemplateBinding FontFamily}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="#252525" />
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="#555555" />
+                        </Trigger>
+                        <!-- Amber highlight while waiting for a key press -->
+                        <Trigger Property="Tag" Value="recording">
+                            <Setter TargetName="Bg" Property="Background" Value="#1A1200" />
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="#F59E0B" />
+                            <Setter TargetName="Txt" Property="Foreground" Value="#F59E0B" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ══ Volume slider ════════════════════════════════════════════════════════ -->
 
     <Style x:Key="VolumeSliderStyle" TargetType="Slider">

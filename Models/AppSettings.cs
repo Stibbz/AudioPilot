@@ -6,5 +6,7 @@ namespace SwitchAudioDevices.Models
         public HashSet<string> DisabledDeviceIds { get; set; } = [];
         public bool LaunchAtStartup { get; set; } = false;
 
+        public HotkeyBinding? HotkeyNext { get; set; }
+        public HotkeyBinding? HotkeyPrev { get; set; }
     }
 }

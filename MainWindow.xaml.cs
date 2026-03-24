@@ -1,3 +1,4 @@
+using SwitchAudioDevices.Models;
 using SwitchAudioDevices.Services;
 using SwitchAudioDevices.ViewModels;
 using System.ComponentModel;
@@ -12,8 +13,12 @@ namespace SwitchAudioDevices
 {
     public partial class MainWindow : Window
     {
-        private MainViewModel _viewModel;
-        public MainViewModel ViewModel => _viewModel;
+        private MainViewModel  _viewModel;
+        public  MainViewModel  ViewModel => _viewModel;
+
+        // ── Hotkey recording state ──────────────────────────────────────────────
+        private int            _recordingId;      // 0 = not recording
+        private HotkeyBinding? _cancelBinding;    // restored on Escape / deactivate
 
         public MainWindow(AudioService audioService, SettingsService settingsService)
         {
@@ -141,8 +146,106 @@ namespace SwitchAudioDevices
         protected override void OnDeactivated(EventArgs e)
         {
             base.OnDeactivated(e);
+            CancelRecording();   // restore hotkey and clear amber state before hiding
             ResetToDeviceList();
             Hide();
+        }
+
+        // ── Hotkey recording ────────────────────────────────────────────────────
+
+        private void HotkeyNextButton_Click(object sender, RoutedEventArgs e) => StartRecording(HotkeyService.IdNext);
+        private void HotkeyPrevButton_Click(object sender, RoutedEventArgs e) => StartRecording(HotkeyService.IdPrev);
+
+        private void StartRecording(int id)
+        {
+            if (_recordingId != 0) return; // already recording
+            _recordingId   = id;
+            _cancelBinding = _viewModel.GetHotkeyBinding(id); // snapshot for Escape/cancel
+
+            // Unregister so the hotkey doesn't fire while we capture keys.
+            ((App)Application.Current).HotkeyService.Unregister(id);
+
+            // Amber highlight on the button being recorded.
+            (id == HotkeyService.IdNext ? HotkeyNextButton : HotkeyPrevButton).Tag = "recording";
+
+            _viewModel.BeginHotkeyRecording(id);
+            PreviewKeyDown += OnCaptureKeyDown;
+        }
+
+        private void OnCaptureKeyDown(object sender, KeyEventArgs e)
+        {
+            e.Handled = true;
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+
+            // Wait for the full combo — ignore bare modifier presses.
+            if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt  or Key.RightAlt
+                    or Key.LeftShift or Key.RightShift or Key.LWin  or Key.RWin)
+                return;
+
+            // Snapshot before StopRecording clears the fields.
+            int id   = _recordingId;
+            var prev = _cancelBinding;
+
+            if (key == Key.Escape)
+            {
+                StopRecording();
+                // Re-register the previous binding.
+                if (prev?.IsSet == true)
+                    ((App)Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
+                return;
+            }
+
+            if (key is Key.Delete or Key.Back)
+            {
+                _viewModel.SetHotkey(id, null);
+                StopRecording();
+                return;
+            }
+
+            // Build the modifier mask.
+            uint mods = 0;
+            if (Keyboard.IsKeyDown(Key.LeftCtrl)  || Keyboard.IsKeyDown(Key.RightCtrl))  mods |= 0x0002;
+            if (Keyboard.IsKeyDown(Key.LeftAlt)   || Keyboard.IsKeyDown(Key.RightAlt))   mods |= 0x0001;
+            if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)) mods |= 0x0004;
+            if (Keyboard.IsKeyDown(Key.LWin)      || Keyboard.IsKeyDown(Key.RWin))       mods |= 0x0008;
+
+            if (mods == 0) return; // require at least one modifier for a safe global hotkey
+
+            uint vk      = (uint)KeyInterop.VirtualKeyFromKey(key);
+            var  binding = new HotkeyBinding { Modifiers = mods, VirtualKey = vk };
+
+            bool ok = ((App)Application.Current).HotkeyService.Register(id, mods, vk);
+            if (ok)
+                _viewModel.SetHotkey(id, binding);
+            else
+            {
+                // Combo already in use — silently revert.
+                _viewModel.SetHotkey(id, prev);
+                if (prev?.IsSet == true)
+                    ((App)Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
+            }
+
+            StopRecording();
+        }
+
+        private void StopRecording()
+        {
+            var button = _recordingId == HotkeyService.IdNext ? HotkeyNextButton : HotkeyPrevButton;
+            PreviewKeyDown -= OnCaptureKeyDown;
+            _viewModel.EndHotkeyRecording();
+            button.Tag     = null;
+            _cancelBinding = null;
+            _recordingId   = 0;
+        }
+
+        private void CancelRecording()
+        {
+            if (_recordingId == 0) return;
+            int id   = _recordingId;
+            var prev = _cancelBinding;
+            StopRecording();
+            if (prev?.IsSet == true)
+                ((App)Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
         }
 
         /// <summary>
@@ -178,7 +281,7 @@ namespace SwitchAudioDevices
 
         private void CloseButton_Click(object sender, RoutedEventArgs e) => Hide();
         private async void SettingsButton_Click(object sender, RoutedEventArgs e) => await NavigateToSettings();
-        private async void BackButton_Click(object sender, RoutedEventArgs e) => await NavigateToDeviceList();
+        private async void BackButton_Click(object sender, RoutedEventArgs e)     => await NavigateToDeviceList();
 
         // ── DWM effects ────────────────────────────────────────────────────────
 
