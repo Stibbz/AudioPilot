@@ -23,7 +23,7 @@
     </Window.Resources>
 
 
-    <Border x:Name="RootBorder" Background="#1A1A1A" CornerRadius="12" BorderBrush="#2E2E2E" BorderThickness="1">
+    <Border x:Name="RootBorder" Background="#292929" CornerRadius="12" BorderBrush="#3A3A3A" BorderThickness="1">
         <Border.Effect>
             <DropShadowEffect Color="Black" BlurRadius="30" ShadowDepth="6" Opacity="0.6" />
         </Border.Effect>
@@ -46,9 +46,9 @@
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="15"
-                                   Foreground="#4A90D9" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                   Foreground="#FF9068" VerticalAlignment="Center" Margin="0,0,10,0" />
                         <TextBlock Text="Audio Switcher" FontSize="13" FontWeight="SemiBold"
-                                   Foreground="#E0E0E0" VerticalAlignment="Center" />
+                                   Foreground="#8D8B84" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -64,7 +64,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="0" Height="1" Background="#252525" VerticalAlignment="Bottom" />
+            <Border Grid.Row="0" Height="1" Background="#363636" VerticalAlignment="Bottom" />
 
             <!-- ══ CONTENT ═══════════════════════════════════════════════════════ -->
             <Grid Grid.Row="1" x:Name="ContentContainer" ClipToBounds="True" MinHeight="120">
@@ -123,21 +123,51 @@
                                                 <!-- Name + subtitle -->
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
                                                     <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Medium"
-                                                               Foreground="#EBEBEB" TextTrimming="CharacterEllipsis" />
+                                                               TextTrimming="CharacterEllipsis">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#8D8B84" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsDefault}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#D4D1C9" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock FontSize="11" Margin="0,2,0,0"
                                                                Style="{StaticResource DeviceSubtitleStyle}" />
                                                 </StackPanel>
 
                                                 <!-- ── Status badges + test sound ───────────────────────── -->
                                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+
+                                                <!-- Test sound button — only shown for the active device -->
+                                                <Button Width="28" Height="28" Margin="0,0,6,0"
+                                                        ToolTip="Play test sound"
+                                                        Click="TestSoundButton_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsDefault}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets"
+                                                               FontSize="12" Foreground="#FF9068" />
+                                                </Button>
+
                                                 <Grid>
 
                                                     <!-- Active (this device is the default output) -->
                                                     <Border CornerRadius="10" Padding="8,4">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
-                                                                <Setter Property="Background"   Value="#1E3A5F" />
-                                                                <Setter Property="BorderBrush"  Value="#4A90D9" />
+                                                                <Setter Property="Background"   Value="Transparent" />
+                                                                <Setter Property="BorderBrush"  Value="#FF9068" />
                                                                 <Setter Property="BorderThickness" Value="1" />
                                                                 <Setter Property="Visibility"   Value="Collapsed" />
                                                                 <Style.Triggers>
@@ -149,9 +179,9 @@
                                                         </Border.Style>
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets"
-                                                                       FontSize="9" Foreground="#4A90D9"
+                                                                       FontSize="9" Foreground="#D4D1C9"
                                                                        VerticalAlignment="Center" Margin="0,0,5,0" />
-                                                            <TextBlock Text="Active" FontSize="11" FontWeight="SemiBold" Foreground="#4A90D9" />
+                                                            <TextBlock Text="Active" FontSize="11" FontWeight="SemiBold" Foreground="#D4D1C9" />
                                                         </StackPanel>
                                                     </Border>
 
@@ -177,9 +207,9 @@
                                                         </Border.Style>
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="&#xE702;" FontFamily="Segoe MDL2 Assets"
-                                                                       FontSize="9" Foreground="#2ECC71"
+                                                                       FontSize="9" Foreground="#D4D1C9"
                                                                        VerticalAlignment="Center" Margin="0,0,5,0" />
-                                                            <TextBlock Text="Connected" FontSize="11" FontWeight="SemiBold" Foreground="#2ECC71" />
+                                                            <TextBlock Text="Connected" FontSize="11" FontWeight="SemiBold" Foreground="#D4D1C9" />
                                                         </StackPanel>
                                                     </Border>
 
@@ -205,9 +235,9 @@
                                                         </Border.Style>
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="&#xE702;" FontFamily="Segoe MDL2 Assets"
-                                                                       FontSize="9" Foreground="#4A90D9"
+                                                                       FontSize="9" Foreground="#D4D1C9"
                                                                        VerticalAlignment="Center" Margin="0,0,5,0" />
-                                                            <TextBlock Text="Connect" FontSize="11" FontWeight="SemiBold" Foreground="#4A90D9" />
+                                                            <TextBlock Text="Connect" FontSize="11" FontWeight="SemiBold" Foreground="#D4D1C9" />
                                                         </StackPanel>
                                                     </Border>
 
@@ -215,7 +245,7 @@
                                                     <Border CornerRadius="10" Padding="8,4">
                                                         <Border.Style>
                                                             <Style TargetType="Border">
-                                                                <Setter Property="Background"      Value="#252525" />
+                                                                <Setter Property="Background"      Value="#363636" />
                                                                 <Setter Property="BorderBrush"     Value="#555555" />
                                                                 <Setter Property="BorderThickness" Value="1" />
                                                                 <Setter Property="Visibility"      Value="Collapsed" />
@@ -253,24 +283,6 @@
                                                     </Border>
 
                                                 </Grid>
-
-                                                <!-- Test sound button — only shown for the active device -->
-                                                <Button Width="28" Height="28" Margin="6,0,0,0"
-                                                        ToolTip="Play test sound"
-                                                        Click="TestSoundButton_Click">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsDefault}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                    <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets"
-                                                               FontSize="12" Foreground="#4A90D9" />
-                                                </Button>
 
                                                 </StackPanel>
                                                 <!-- ── end badges ─── -->
@@ -339,7 +351,7 @@
                             <TextBlock Text="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#888888" />
                         </Button>
                         <TextBlock Text="Settings" FontSize="13" FontWeight="SemiBold"
-                                   Foreground="#E0E0E0" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                   Foreground="#8D8B84" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Visible"
@@ -400,7 +412,7 @@
                                     <Border Width="36" Height="36" CornerRadius="8" VerticalAlignment="Center">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#2A2A2A" />
+                                                <Setter Property="Background" Value="#3A3A3A" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding LaunchAtStartup}" Value="True">
                                                         <Setter Property="Background" Value="#1E3A5F" />
@@ -423,7 +435,7 @@
                                         </TextBlock>
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <TextBlock Text="Launch at startup" FontSize="13" FontWeight="Medium" Foreground="#EBEBEB" />
+                                        <TextBlock Text="Launch at startup" FontSize="13" FontWeight="Medium" Foreground="#8D8B84" />
                                         <TextBlock FontSize="11" Margin="0,2,0,0">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -459,7 +471,7 @@
                                        Foreground="#555555" Margin="4,16,0,8" />
 
                             <!-- Next device -->
-                            <Border Background="#222222" BorderBrush="#2E2E2E" BorderThickness="1"
+                            <Border Background="#333333" BorderBrush="#3A3A3A" BorderThickness="1"
                                     CornerRadius="10" Padding="14,12" Margin="0,0,0,6">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -467,12 +479,12 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Width="36" Height="36" CornerRadius="8" Background="#2A2A2A" VerticalAlignment="Center">
+                                    <Border Width="36" Height="36" CornerRadius="8" Background="#3A3A3A" VerticalAlignment="Center">
                                         <TextBlock Text="&#xE893;" FontFamily="Segoe MDL2 Assets" FontSize="16"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#555555" />
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <TextBlock Text="Next device" FontSize="13" FontWeight="Medium" Foreground="#EBEBEB" />
+                                        <TextBlock Text="Next device" FontSize="13" FontWeight="Medium" Foreground="#8D8B84" />
                                         <TextBlock Text="Esc to cancel  ·  Del to clear"
                                                    FontSize="10" Foreground="#444444" Margin="0,2,0,0" />
                                     </StackPanel>
@@ -484,7 +496,7 @@
                             </Border>
 
                             <!-- Previous device -->
-                            <Border Background="#222222" BorderBrush="#2E2E2E" BorderThickness="1"
+                            <Border Background="#333333" BorderBrush="#3A3A3A" BorderThickness="1"
                                     CornerRadius="10" Padding="14,12" Margin="0,0,0,6">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -492,12 +504,12 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Width="36" Height="36" CornerRadius="8" Background="#2A2A2A" VerticalAlignment="Center">
+                                    <Border Width="36" Height="36" CornerRadius="8" Background="#3A3A3A" VerticalAlignment="Center">
                                         <TextBlock Text="&#xE892;" FontFamily="Segoe MDL2 Assets" FontSize="16"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#555555" />
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <TextBlock Text="Previous device" FontSize="13" FontWeight="Medium" Foreground="#EBEBEB" />
+                                        <TextBlock Text="Previous device" FontSize="13" FontWeight="Medium" Foreground="#8D8B84" />
                                         <TextBlock Text="Esc to cancel  ·  Del to clear"
                                                    FontSize="10" Foreground="#444444" Margin="0,2,0,0" />
                                     </StackPanel>
@@ -515,7 +527,7 @@
 
             <!-- ══ STATUS STRIP ═════════════════════════════════════════════════════ -->
             <!-- Collapses entirely when there is nothing to say. -->
-            <Border Grid.Row="2" BorderBrush="#252525" BorderThickness="0,1,0,0"
+            <Border Grid.Row="2" BorderBrush="#363636" BorderThickness="0,1,0,0"
                     Padding="20,8" CornerRadius="0,0,12,12">
                 <Border.Style>
                     <Style TargetType="Border">

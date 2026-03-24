@@ -206,14 +206,22 @@ namespace SwitchAudioDevices
         {
             try
             {
-                using var bmp  = new Bitmap(32, 32);
-                using var g    = Graphics.FromImage(bmp);
+                using var bmp = new Bitmap(32, 32);
+                using var g   = Graphics.FromImage(bmp);
                 g.Clear(Color.Transparent);
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                using var font  = new Font("Segoe MDL2 Assets", 30f, GraphicsUnit.Pixel);
-                using var brush = new SolidBrush(Color.White);
+
+                using var font  = new Font("Segoe MDL2 Assets", 28f, GraphicsUnit.Pixel);
+                using var brush = new SolidBrush(Color.FromArgb(255, 144, 104));
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                g.DrawString("\uE767", font, brush, new RectangleF(0, 0, 32, 32), sf);
+
+                // Simulate stroke by drawing at 1px offsets in all 8 directions first
+                foreach (var (dx, dy) in new[]{(-0.5f,-0.5f),(0f,-0.5f),(0.5f,-0.5f),(-0.5f,0f),(0.5f,0f),(-0.5f,0.5f),(0f,0.5f),(0.5f,0.5f)})
+                    g.DrawString("\uE895", font, brush, new RectangleF(dx, dy, 32, 32), sf);
+
+                // Draw the main glyph on top to keep edges crisp
+                g.DrawString("\uE895", font, brush, new RectangleF(0, 0, 32, 32), sf);
+
                 return Icon.FromHandle(bmp.GetHicon());
             }
             catch { return SystemIcons.Application; }
