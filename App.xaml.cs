@@ -210,8 +210,8 @@ namespace SwitchAudioDevices
                 using var g    = Graphics.FromImage(bmp);
                 g.Clear(Color.Transparent);
                 g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                using var font  = new Font("Segoe MDL2 Assets", 20f, GraphicsUnit.Pixel);
-                using var brush = new SolidBrush(Color.FromArgb(0x4A, 0x90, 0xD9));
+                using var font  = new Font("Segoe MDL2 Assets", 30f, GraphicsUnit.Pixel);
+                using var brush = new SolidBrush(Color.White);
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 g.DrawString("\uE767", font, brush, new RectangleF(0, 0, 32, 32), sf);
                 return Icon.FromHandle(bmp.GetHicon());
