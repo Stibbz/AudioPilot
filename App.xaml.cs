@@ -1,4 +1,5 @@
 using SwitchAudioDevices.Services;
+using SwitchAudioDevices.ViewModels;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Forms;
@@ -111,10 +112,10 @@ namespace SwitchAudioDevices
             {
                 if (_mainWindow?.ViewModel is { } vm)
                 {
-                    var (outcome, name) = await vm.CycleAsync(hotkeyId == HotkeyService.IdNext ? 1 : -1);
+                    var (outcome, name, index, total) = await vm.CycleAsync(hotkeyId == HotkeyService.IdNext ? 1 : -1);
 
                     if (outcome == MainViewModel.CycleOutcome.Switched)
-                        Notify($"Switched to {name}");
+                        Notify($"Switched to {name} [{index}/{total}]");
                     else if (outcome == MainViewModel.CycleOutcome.BtFailed)
                         Notify($"Could not connect to {name}", isError: true);
                 }
