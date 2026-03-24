@@ -271,11 +271,20 @@ namespace SwitchAudioDevices.ViewModels
 
         public enum CycleOutcome { Switched, BtFailed, NoDevices }
 
+        // Track the most recent BT connection failure so a quick second press skips past.
+        private string   _lastBtFailId   = "";
+        private DateTime _lastBtFailTime = DateTime.MinValue;
+
         /// <summary>
         /// Cycles one step in <paramref name="direction"/> (+1 = next, -1 = previous)
         /// through the enabled device list only.
-        /// If the target is a disconnected Bluetooth device, a silent connection attempt
+        /// <para>
+        /// If the target is a disconnected Bluetooth device a silent connection attempt
         /// is made; the switch only happens if it succeeds within 15 seconds.
+        /// If the same device failed within the last 3 seconds (i.e. the hotkey was
+        /// pressed twice in quick succession) it is skipped and the next device in the
+        /// same direction is selected instead.
+        /// </para>
         /// </summary>
         public async Task<(CycleOutcome Outcome, string DeviceName, int Index, int Total)> CycleAsync(int direction)
         {
@@ -291,8 +300,31 @@ namespace SwitchAudioDevices.ViewModels
 
             if (device.IsBluetooth && !device.IsBluetoothConnected)
             {
-                bool connected = await TryConnectSilentAsync(device);
-                if (!connected) return (CycleOutcome.BtFailed, device.Name, 0, 0);
+                bool recentlyFailed = device.Id == _lastBtFailId &&
+                                      (DateTime.UtcNow - _lastBtFailTime).TotalSeconds < 3;
+
+                if (recentlyFailed)
+                {
+                    // Second press within 3 s: skip past this device.
+                    _lastBtFailId = "";
+                    target        = ((target + direction) % n + n) % n;
+                    device        = list[target];
+                }
+                else
+                {
+                    bool connected = await TryConnectSilentAsync(device);
+                    if (!connected)
+                    {
+                        _lastBtFailId   = device.Id;
+                        _lastBtFailTime = DateTime.UtcNow;
+                        return (CycleOutcome.BtFailed, device.Name, 0, 0);
+                    }
+                    _lastBtFailId = "";
+                }
+            }
+            else
+            {
+                _lastBtFailId = ""; // reset on any successful non-BT step
             }
 
             SwitchDefault(device.Id);

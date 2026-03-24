@@ -163,7 +163,7 @@ namespace SwitchAudioDevices
             _cancelBinding = _viewModel.GetHotkeyBinding(id); // snapshot for Escape/cancel
 
             // Unregister so the hotkey doesn't fire while we capture keys.
-            ((App)Application.Current).HotkeyService.Unregister(id);
+            ((App)System.Windows.Application.Current).HotkeyService.Unregister(id);
 
             // Amber highlight on the button being recorded.
             (id == HotkeyService.IdNext ? HotkeyNextButton : HotkeyPrevButton).Tag = "recording";
@@ -172,7 +172,7 @@ namespace SwitchAudioDevices
             PreviewKeyDown += OnCaptureKeyDown;
         }
 
-        private void OnCaptureKeyDown(object sender, KeyEventArgs e)
+        private void OnCaptureKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             e.Handled = true;
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
@@ -191,7 +191,7 @@ namespace SwitchAudioDevices
                 StopRecording();
                 // Re-register the previous binding.
                 if (prev?.IsSet == true)
-                    ((App)Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
+                    ((App)System.Windows.Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
                 return;
             }
 
@@ -214,7 +214,7 @@ namespace SwitchAudioDevices
             uint vk      = (uint)KeyInterop.VirtualKeyFromKey(key);
             var  binding = new HotkeyBinding { Modifiers = mods, VirtualKey = vk };
 
-            bool ok = ((App)Application.Current).HotkeyService.Register(id, mods, vk);
+            bool ok = ((App)System.Windows.Application.Current).HotkeyService.Register(id, mods, vk);
             if (ok)
                 _viewModel.SetHotkey(id, binding);
             else
@@ -222,7 +222,7 @@ namespace SwitchAudioDevices
                 // Combo already in use — silently revert.
                 _viewModel.SetHotkey(id, prev);
                 if (prev?.IsSet == true)
-                    ((App)Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
+                    ((App)System.Windows.Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
             }
 
             StopRecording();
@@ -245,7 +245,7 @@ namespace SwitchAudioDevices
             var prev = _cancelBinding;
             StopRecording();
             if (prev?.IsSet == true)
-                ((App)Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
+                ((App)System.Windows.Application.Current).HotkeyService.Register(id, prev.Modifiers, prev.VirtualKey);
         }
 
         /// <summary>
