@@ -40,39 +40,48 @@ namespace SwitchAudioDevices.Services
 
             foreach (var ep in _enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.All))
             {
-                var isActive       = ep.State == DeviceState.Active;
-                var isDisconnected = ep.State is DeviceState.Unplugged or DeviceState.NotPresent;
-
-                if (!isActive && !isDisconnected) continue;
-
-                var btMatch    = MatchBluetooth(ep.FriendlyName, btDevices);
-                var isBtByProp = btMatch == null && IsBluetoothByProperty(ep);
-
-                float volume = 0f;
-                if (isActive)
+                try
                 {
-                    try { volume = ep.AudioEndpointVolume.MasterVolumeLevelScalar; }
-                    catch { }
+                    var isActive       = ep.State == DeviceState.Active;
+                    var isDisconnected = ep.State is DeviceState.Unplugged or DeviceState.NotPresent;
+
+                    if (!isActive && !isDisconnected) continue;
+
+                    var btMatch    = MatchBluetooth(ep.FriendlyName, btDevices);
+                    var isBtByProp = btMatch == null && IsBluetoothByProperty(ep);
+
+                    float volume = 0f;
+                    if (isActive)
+                    {
+                        try { volume = ep.AudioEndpointVolume.MasterVolumeLevelScalar; }
+                        catch { }
+                    }
+
+                    if (isActive)
+                    {
+                        bool isBt = btMatch != null || isBtByProp;
+                        result.Add(new AudioEndpointInfo(
+                            ep.ID, ep.FriendlyName, ep.ID == defaultId,
+                            IsBluetooth:          isBt,
+                            IsBluetoothConnected: isBt,
+                            BluetoothAddress:     btMatch?.Address ?? 0,
+                            Volume:               volume));
+                    }
+                    else if (btMatch != null || isBtByProp)
+                    {
+                        result.Add(new AudioEndpointInfo(
+                            ep.ID, ep.FriendlyName, ep.ID == defaultId,
+                            IsBluetooth:          true,
+                            IsBluetoothConnected: false,
+                            BluetoothAddress:     btMatch?.Address ?? 0,
+                            Volume:               0f));
+                    }
                 }
-
-                if (isActive)
+                catch (COMException)
                 {
-                    bool isBt = btMatch != null || isBtByProp;
-                    result.Add(new AudioEndpointInfo(
-                        ep.ID, ep.FriendlyName, ep.ID == defaultId,
-                        IsBluetooth:          isBt,
-                        IsBluetoothConnected: isBt,
-                        BluetoothAddress:     btMatch?.Address ?? 0,
-                        Volume:               volume));
-                }
-                else if (btMatch != null || isBtByProp)
-                {
-                    result.Add(new AudioEndpointInfo(
-                        ep.ID, ep.FriendlyName, ep.ID == defaultId,
-                        IsBluetooth:          true,
-                        IsBluetoothConnected: false,
-                        BluetoothAddress:     btMatch?.Address ?? 0,
-                        Volume:               0f));
+                    // Device is in a transient/invalid state (e.g. 0x8889000A, 0xE000020B).
+                    // Skip it — it will re-appear on the next poll once Windows
+                    // has finished updating the endpoint's property store.
                 }
             }
 
