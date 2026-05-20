@@ -19,9 +19,11 @@ namespace SwitchAudioDevices
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            Logger.LogSeparator();
             InitializeTrayIcon();
             RegisterSavedHotkeys();
-            _hotkeyService.HotkeyPressed += OnHotkeyPressed;
+            _hotkeyService.HotkeyPressed   += OnHotkeyPressed;
+            _audioService.DeviceStateChanged += OnDeviceStateChanged;
         }
 
         private void RegisterSavedHotkeys()
@@ -105,6 +107,27 @@ namespace SwitchAudioDevices
         }
 
         // ── Hotkey ──────────────────────────────────────────────────────────────
+
+        private CancellationTokenSource? _deviceChangeCts;
+
+        private void OnDeviceStateChanged()
+        {
+            // Debounce: Windows fires several notifications in quick succession when a
+            // BT device connects or disconnects — collapse them into one reload.
+            _deviceChangeCts?.Cancel();
+            _deviceChangeCts = new CancellationTokenSource();
+            var token = _deviceChangeCts.Token;
+            _ = Task.Delay(500, token).ContinueWith(_ =>
+            {
+                if (token.IsCancellationRequested) return;
+                Dispatcher.Invoke(() =>
+                {
+                    _mainWindow?.ViewModel.LoadDevices();
+                    UpdateTrayTooltip();
+                    RefreshContextMenu();
+                });
+            }, TaskScheduler.Default);
+        }
 
         private void OnHotkeyPressed(int hotkeyId)
         {
