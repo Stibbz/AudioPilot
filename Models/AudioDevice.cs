@@ -30,7 +30,7 @@ namespace SwitchAudioDevices.Models
                     n.Contains("earphone")  || n.Contains("airpod")  ||
                     n.Contains("buds")      || n.Contains("ear "))
                     return "\uE7EF"; // Headphones
-                return "\uE767"; // Speaker (default)
+                return "\uE772"; // Speaker (default)
             }
         }
 

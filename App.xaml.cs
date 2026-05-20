@@ -217,10 +217,10 @@ namespace SwitchAudioDevices
 
                 // Simulate stroke by drawing at 1px offsets in all 8 directions first
                 foreach (var (dx, dy) in new[]{(-0.5f,-0.5f),(0f,-0.5f),(0.5f,-0.5f),(-0.5f,0f),(0.5f,0f),(-0.5f,0.5f),(0f,0.5f),(0.5f,0.5f)})
-                    g.DrawString("\uE895", font, brush, new RectangleF(dx, dy, 32, 32), sf);
+                    g.DrawString("\uE772", font, brush, new RectangleF(dx, dy, 32, 32), sf);
 
                 // Draw the main glyph on top to keep edges crisp
-                g.DrawString("\uE895", font, brush, new RectangleF(0, 0, 32, 32), sf);
+                g.DrawString("\uE772", font, brush, new RectangleF(0, 0, 32, 32), sf);
 
                 return Icon.FromHandle(bmp.GetHicon());
             }
