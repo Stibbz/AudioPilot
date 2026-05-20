@@ -119,12 +119,16 @@ namespace SwitchAudioDevices.Services
             catch { }
         }
 
-        public bool ConnectBluetoothDevice(ulong bluetoothAddress, string deviceName)
+        public async Task<bool> ConnectBluetoothDeviceAsync(ulong bluetoothAddress, string deviceName)
         {
             // Invalidate cache so the next poll after connecting sees fresh BT state.
             _btCache = null;
-            return _bt.ConnectDevice(bluetoothAddress, deviceName);
+            return await _bt.ConnectDeviceAsync(bluetoothAddress, deviceName);
         }
+
+        /// <summary>Discards the cached BT paired-device list so the next call to
+        /// <see cref="GetAllEndpoints"/> fetches a fresh snapshot from the radio.</summary>
+        public void InvalidateBtCache() => _btCache = null;
 
         public void Dispose() => _enumerator.Dispose();
 

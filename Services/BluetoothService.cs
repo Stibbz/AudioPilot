@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using Windows.Devices.Bluetooth;
+using Windows.Devices.Bluetooth.Rfcomm;
 
 namespace SwitchAudioDevices.Services
 {
@@ -162,6 +164,51 @@ namespace SwitchAudioDevices.Services
                 System.Diagnostics.Debug.WriteLine($"BT Connect: exception — {ex.Message}");
             }
             return false;
+        }
+
+        /// <summary>
+        /// Async wrapper that first tries the classic bthprops path, then falls back to
+        /// the WinRT <see cref="BluetoothDevice"/> API for devices (e.g. AirPods) that do
+        /// not respond to <c>BluetoothSetServiceState</c>.  The WinRT path requests uncached
+        /// RFCOMM services, which forces the BT stack to open an ACL link to the device;
+        /// the Windows audio subsystem then negotiates A2DP over that link automatically.
+        /// Returns true if a connection attempt was successfully initiated.
+        /// </summary>
+        public async Task<bool> ConnectDeviceAsync(ulong bluetoothAddress, string? fallbackName = null)
+        {
+            // Classic synchronous path (works for most standard BT devices).
+            // Run on a thread-pool thread so blocking P/Invoke doesn't stall the UI.
+            bool classicOk = await Task.Run(() => ConnectDevice(bluetoothAddress, fallbackName));
+            if (classicOk) return true;
+
+            // WinRT fallback — requires a known address (no name-only path here).
+            if (bluetoothAddress == 0) return false;
+            try
+            {
+                var bt = await BluetoothDevice.FromBluetoothAddressAsync(bluetoothAddress);
+                if (bt == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("BT Connect WinRT: device not found for address");
+                    return false;
+                }
+
+                // Uncached forces an over-the-air ACL connection; the audio subsystem
+                // negotiates A2DP over it automatically once the link is up.
+                var result = await bt.GetRfcommServicesAsync(BluetoothCacheMode.Uncached);
+
+                System.Diagnostics.Debug.WriteLine($"BT Connect WinRT: GetRfcommServices error={result.Error}");
+
+                // RadioNotAvailable / OtherError mean we genuinely can't proceed.
+                // Everything else (Success, NotSupported, DeviceNotConnected, …) means the
+                // stack contacted or attempted to contact the device — worth polling.
+                return result.Error is not BluetoothError.RadioNotAvailable
+                                    and not BluetoothError.OtherError;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"BT Connect WinRT fallback exception: {ex.Message}");
+                return false;
+            }
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────

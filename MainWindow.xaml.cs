@@ -20,11 +20,28 @@ namespace SwitchAudioDevices
         private int            _recordingId;      // 0 = not recording
         private HotkeyBinding? _cancelBinding;    // restored on Escape / deactivate
 
+        // ── Deferred-hide state ─────────────────────────────────────────────────
+        // When the window loses focus during an active BT connection we keep it visible
+        // and set this flag so it auto-hides once the connection attempt resolves.
+        private bool _pendingHide;
+
         public MainWindow(AudioService audioService, SettingsService settingsService)
         {
             InitializeComponent();
             _viewModel = new MainViewModel(audioService, settingsService);
             DataContext = _viewModel;
+
+            // Hide the window once a BT connection resolves if the user had
+            // already tried to dismiss it during the connection attempt.
+            _viewModel.ConnectionResolved = () =>
+            {
+                if (_pendingHide)
+                {
+                    _pendingHide = false;
+                    Dispatcher.BeginInvoke(Hide);
+                }
+            };
+
             Loaded += OnLoaded;
             IsVisibleChanged += OnIsVisibleChanged;
             SizeChanged += OnSizeChanged;
@@ -143,11 +160,29 @@ namespace SwitchAudioDevices
 
         protected override void OnClosing(CancelEventArgs e) { e.Cancel = true; Hide(); }
 
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            // User explicitly re-focused the window — cancel any pending auto-hide so
+            // they can see the connection outcome themselves and dismiss at their own pace.
+            _pendingHide = false;
+        }
+
         protected override void OnDeactivated(EventArgs e)
         {
             base.OnDeactivated(e);
             CancelRecording();   // restore hotkey and clear amber state before hiding
             ResetToDeviceList();
+
+            // Keep the window visible while a BT connection is in progress so the user
+            // can see "Connecting…" and the eventual result.  ConnectionResolved will
+            // hide it once the attempt finishes.
+            if (_viewModel.Devices.Any(d => d.IsConnecting))
+            {
+                _pendingHide = true;
+                return;
+            }
+            _pendingHide = false;
             Hide();
         }
 

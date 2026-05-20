@@ -338,20 +338,31 @@ namespace SwitchAudioDevices.ViewModels
         /// </summary>
         private async Task<bool> TryConnectSilentAsync(AudioDevice device)
         {
-            bool started = await Task.Run(() =>
-                _audioService.ConnectBluetoothDevice(device.BluetoothAddress, device.Name));
+            bool started = await _audioService.ConnectBluetoothDeviceAsync(device.BluetoothAddress, device.Name);
             if (!started) return false;
 
             var deadline = DateTime.UtcNow.AddSeconds(15);
             while (DateTime.UtcNow < deadline)
             {
                 await Task.Delay(1500);
+                _audioService.InvalidateBtCache();
                 var endpoints = await Task.Run(() => _audioService.GetAllEndpoints());
                 if (endpoints.FirstOrDefault(e => e.Id == device.Id)?.IsBluetoothConnected == true)
                     return true;
             }
             return false;
         }
+
+        // ── Helpers ─────────────────────────────────────────────────────────────
+
+        private AudioDevice? FindDevice(string id) => Devices.FirstOrDefault(d => d.Id == id);
+
+        /// <summary>
+        /// Invoked when a Bluetooth connection attempt resolves (success, failure, or timeout).
+        /// <see cref="MainWindow"/> wires this to defer-hide logic so the window can stay visible
+        /// during a connection attempt and then auto-close once the outcome is known.
+        /// </summary>
+        public Action? ConnectionResolved { get; set; }
 
         // ── Device action ───────────────────────────────────────────────────────
 
@@ -375,64 +386,64 @@ namespace SwitchAudioDevices.ViewModels
 
         private async Task ConnectBluetoothAsync(AudioDevice device)
         {
+            // Capture immutable identity up-front — LoadDevices() will replace the object
+            // in Devices, so we must look it up by ID after any collection refresh.
+            var deviceId      = device.Id;
+            var deviceName    = device.Name;
+            var deviceAddress = device.BluetoothAddress;
+
             device.IsConnecting       = true;
             device.IsConnectionFailed = false;
-            SetStatus($"Connecting to {device.Name}…", isError: false, autoCloseMs: 0);
+            SetStatus($"Connecting to {deviceName}…", isError: false, autoCloseMs: 0);
 
-            await Task.Yield();
-
-            bool started = await Task.Run(() =>
-                _audioService.ConnectBluetoothDevice(device.BluetoothAddress, device.Name));
+            // ConnectBluetoothDeviceAsync handles its own threading (P/Invoke on pool,
+            // WinRT truly async) so no Task.Run wrapper is needed here.
+            bool started = await _audioService.ConnectBluetoothDeviceAsync(deviceAddress, deviceName);
 
             if (!started)
             {
-                // Bluetooth stack couldn't even find / reach the device — fail immediately.
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                {
-                    device.IsConnecting       = false;
-                    device.IsConnectionFailed = true;
-                    LoadDevices();
-                    SetStatus($"Could not reach {device.Name} — make sure it is powered on", isError: true, autoCloseMs: 6000);
-                });
+                LoadDevices();
+                var current = FindDevice(deviceId);
+                if (current != null) current.IsConnectionFailed = true;
+                SetStatus($"Could not reach {deviceName} — make sure it is powered on", isError: true, autoCloseMs: 6000);
                 await Task.Delay(4000);
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    device.IsConnectionFailed = false);
+                var reset = FindDevice(deviceId);
+                if (reset != null) reset.IsConnectionFailed = false;
+                ConnectionResolved?.Invoke();
                 return;
             }
 
-            // Poll until the device shows up as connected (up to 15 s).
+            // Poll until the WASAPI endpoint appears as Active/connected (up to 15 s).
             var deadline = DateTime.UtcNow.AddSeconds(15);
             while (DateTime.UtcNow < deadline)
             {
                 await Task.Delay(1500);
-
+                // Invalidate the BT cache before each poll so fConnected reflects the
+                // live radio state, not a snapshot from the previous iteration.
+                _audioService.InvalidateBtCache();
                 var fresh = await Task.Run(() => _audioService.GetAllEndpoints());
-                if (fresh.FirstOrDefault(d => d.Id == device.Id)?.IsBluetoothConnected == true)
+                if (fresh.FirstOrDefault(d => d.Id == deviceId)?.IsBluetoothConnected == true)
                 {
-                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        _audioService.SetDefaultDevice(device.Id);
-                        LoadDevices();
-                        // WASAPI can lag reporting the new default after a BT connect;
-                        // force the flag so the UI reflects the switch immediately.
-                        foreach (var d in Devices) d.IsDefault = d.Id == device.Id;
-                        SetStatus($"Connected to {device.Name}", isError: false, autoCloseMs: 3000);
-                    });
+                    _audioService.SetDefaultDevice(deviceId);
+                    LoadDevices();
+                    // WASAPI can lag reporting the new default after a BT connect;
+                    // force the flag so the UI reflects the switch immediately.
+                    foreach (var d in Devices) d.IsDefault = d.Id == deviceId;
+                    SetStatus($"Connected to {deviceName}", isError: false, autoCloseMs: 3000);
+                    ConnectionResolved?.Invoke();
                     return;
                 }
             }
 
             // Timed out.
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                device.IsConnecting       = false;
-                device.IsConnectionFailed = true;
-                LoadDevices();
-                SetStatus($"Could not connect to {device.Name}", isError: true, autoCloseMs: 6000);
-            });
+            LoadDevices();
+            var timedOut = FindDevice(deviceId);
+            if (timedOut != null) timedOut.IsConnectionFailed = true;
+            SetStatus($"Could not connect to {deviceName}", isError: true, autoCloseMs: 6000);
             await Task.Delay(4000);
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                device.IsConnectionFailed = false);
+            var timedOutReset = FindDevice(deviceId);
+            if (timedOutReset != null) timedOutReset.IsConnectionFailed = false;
+            ConnectionResolved?.Invoke();
         }
 
         private void ToggleSettingsDevice(string? deviceId)
