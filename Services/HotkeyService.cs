@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace SwitchAudioDevices.Services
+namespace AudioPilot.Services
 {
     /// <summary>
     /// Registers system-wide hotkeys and fires <see cref="HotkeyPressed"/> with the

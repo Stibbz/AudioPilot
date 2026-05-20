@@ -1,11 +1,11 @@
 using System.IO;
 
-namespace SwitchAudioDevices.Services
+namespace AudioPilot.Services
 {
     public static class Logger
     {
         private static readonly string LogPath = Path.Combine(
-            AppContext.BaseDirectory, "SwitchAudioDevices.log");
+            AppContext.BaseDirectory, "AudioPilot.log");
 
         private static readonly object _lock = new();
 

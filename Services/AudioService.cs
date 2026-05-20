@@ -1,9 +1,9 @@
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
-using SwitchAudioDevices.Models;
+using AudioPilot.Models;
 using System.Runtime.InteropServices;
 
-namespace SwitchAudioDevices.Services
+namespace AudioPilot.Services
 {
     /// <summary>Rich description of a single audio render endpoint.</summary>
     public record AudioEndpointInfo(

@@ -1,6 +1,6 @@
 using System.Windows.Input;
 
-namespace SwitchAudioDevices.Models
+namespace AudioPilot.Models
 {
     /// <summary>
     /// A serialisable hotkey combination stored in AppSettings.

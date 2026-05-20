@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace SwitchAudioDevices.Models
+namespace AudioPilot.Models
 {
     public class AudioDevice : INotifyPropertyChanged
     {

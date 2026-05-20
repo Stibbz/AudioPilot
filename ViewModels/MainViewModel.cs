@@ -1,12 +1,12 @@
-using SwitchAudioDevices.Models;
-using SwitchAudioDevices.Services;
+using AudioPilot.Models;
+using AudioPilot.Services;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 
-namespace SwitchAudioDevices.ViewModels
+namespace AudioPilot.ViewModels
 {
     public class RelayCommand(Action execute) : ICommand
     {

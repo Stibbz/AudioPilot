@@ -1,6 +1,6 @@
-using SwitchAudioDevices.Models;
-using SwitchAudioDevices.Services;
-using SwitchAudioDevices.ViewModels;
+using AudioPilot.Models;
+using AudioPilot.Services;
+using AudioPilot.ViewModels;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -9,7 +9,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 
-namespace SwitchAudioDevices
+namespace AudioPilot
 {
     public partial class MainWindow : Window
     {

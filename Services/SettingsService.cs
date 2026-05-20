@@ -1,18 +1,18 @@
-using SwitchAudioDevices.Models;
+using AudioPilot.Models;
 using System.IO;
 using System.Text.Json;
 
-namespace SwitchAudioDevices.Services
+namespace AudioPilot.Services
 {
     public class SettingsService
     {
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SwitchAudioDevices", "settings.json");
+            "AudioPilot", "settings.json");
 
         private static readonly string ShortcutPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.Startup),
-            "SwitchAudioDevices.lnk");
+            "AudioPilot.lnk");
 
         public AppSettings Settings { get; private set; } = new();
 
@@ -85,7 +85,7 @@ namespace SwitchAudioDevices.Services
                 dynamic shortcut = shell.CreateShortcut(ShortcutPath);
                 shortcut.TargetPath = exePath;
                 shortcut.WorkingDirectory = Path.GetDirectoryName(exePath);
-                shortcut.Description = "Audio Switcher";
+                shortcut.Description = "AudioPilot";
                 shortcut.Save();
             }
             catch { }

@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <RootNamespace>SwitchAudioDevices</RootNamespace>
+    <RootNamespace>AudioPilot</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

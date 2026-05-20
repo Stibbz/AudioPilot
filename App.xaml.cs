@@ -1,10 +1,10 @@
-using SwitchAudioDevices.Services;
-using SwitchAudioDevices.ViewModels;
+using AudioPilot.Services;
+using AudioPilot.ViewModels;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Forms;
 
-namespace SwitchAudioDevices
+namespace AudioPilot
 {
     public partial class App : System.Windows.Application
     {
@@ -41,7 +41,7 @@ namespace SwitchAudioDevices
         {
             _trayIcon = new NotifyIcon
             {
-                Text    = "Audio Switcher",
+                Text    = "AudioPilot",
                 Visible = true,
                 Icon    = CreateSpeakerIcon()
             };
@@ -151,7 +151,7 @@ namespace SwitchAudioDevices
         {
             _trayIcon.ShowBalloonTip(
                 timeout: 4000,
-                tipTitle: "Audio Switcher",
+                tipTitle: "AudioPilot",
                 tipText:  message,
                 tipIcon:  isError ? ToolTipIcon.Warning : ToolTipIcon.Info);
         }

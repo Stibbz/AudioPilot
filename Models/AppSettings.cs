@@ -1,4 +1,4 @@
-namespace SwitchAudioDevices.Models
+namespace AudioPilot.Models
 {
     public class AppSettings
     {

@@ -1,7 +1,7 @@
-<Window x:Class="SwitchAudioDevices.MainWindow"
+<Window x:Class="AudioPilot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Audio Switcher"
+        Title="AudioPilot"
         Width="420"
         Height="Auto"
         MinHeight="320"
@@ -47,7 +47,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="15"
                                    Foreground="#FF9068" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <TextBlock Text="Audio Switcher" FontSize="13" FontWeight="SemiBold"
+                        <TextBlock Text="AudioPilot" FontSize="13" FontWeight="SemiBold"
                                    Foreground="#8D8B84" VerticalAlignment="Center" />
                     </StackPanel>
 

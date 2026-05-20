@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace SwitchAudioDevices.ViewModels
+namespace AudioPilot.ViewModels
 {
     public class SettingsDeviceViewModel : INotifyPropertyChanged
     {

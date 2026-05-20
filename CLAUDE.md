@@ -1,4 +1,4 @@
-# SwitchAudioDevices — Claude context
+# AudioPilot — Claude context
 
 ## Build
 `dotnet build` — builds from repo root; outputs to `bin/Debug/net8.0-windows10.0.17763.0/`

@@ -3,7 +3,7 @@ using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Rfcomm;
 using Windows.Networking.Sockets;
 
-namespace SwitchAudioDevices.Services
+namespace AudioPilot.Services
 {
     public record BluetoothDeviceInfo(string Name, ulong Address, bool IsConnected);
 
