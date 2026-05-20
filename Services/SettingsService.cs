@@ -48,7 +48,21 @@ namespace SwitchAudioDevices.Services
             Save();
         }
 
-        public bool StartupShortcutExists() => File.Exists(ShortcutPath);
+        public bool StartupShortcutExists()
+        {
+            if (!File.Exists(ShortcutPath)) return false;
+            try
+            {
+                var currentExe = Environment.ProcessPath
+                    ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+                    ?? string.Empty;
+                dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
+                dynamic shortcut = shell.CreateShortcut(ShortcutPath);
+                string target = shortcut.TargetPath;
+                return string.Equals(target, currentExe, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
 
         public void SetLaunchAtStartup(bool enable)
         {

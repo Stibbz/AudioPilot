@@ -18,7 +18,8 @@ Models/AudioDevice.cs           — observable device model; IsBluetooth/IsBluet
 
 ## Architecture notes
 - **Device objects are ephemeral**: `LoadDevices()` / `LoadDevicesAsync()` clears and replaces every `AudioDevice` in `Devices`. Never hold an `AudioDevice` reference across those calls — capture the `Id` and use `FindDevice(id)` afterwards.
-- **BT connection**: two-layer approach in `BluetoothService.ConnectDeviceAsync` — classic `BluetoothSetServiceState` first, then WinRT `BluetoothDevice.GetRfcommServicesAsync(Uncached)` fallback for Apple/BLE-hybrid devices.
+- **BT connection**: `BluetoothService.ConnectDeviceAsync` — classic `BluetoothSetServiceState` (works for standard BT), then WinRT `GetRfcommServicesAsync(Uncached)` always runs in parallel. For Apple devices (AirPods etc.) `BluetoothSetServiceState` always returns error 87 and is a no-op; connection relies entirely on the WinRT path. After services are found, an RFCOMM `StreamSocket` is opened to the first service to keep the ACL link alive while Audiosrv negotiates A2DP — without it the link drops in ~3 s. Call `AudioService.ReleaseAclSocket()` when polling completes.
+- **WASAPI notifications**: `AudioService` implements `IMMNotificationClient` (from `NAudio.CoreAudioApi.Interfaces`, not `NAudio.CoreAudioApi`) and fires `DeviceStateChanged`. `App.xaml.cs` debounces this to reload the device list on any endpoint state change.
 - **BT cache**: `AudioService` caches `GetPairedDevices()` for 5 s. Call `InvalidateBtCache()` before each poll when freshness matters.
 - **Window auto-hides on `OnDeactivated`** — intentional tray-app behaviour; guard async flows that must keep the window visible.
 - **WASAPI state model**: `GetAllEndpoints()` includes Active endpoints + Unplugged/NotPresent ones that match a paired BT device. Non-BT unplugged devices are excluded.
@@ -27,6 +28,9 @@ Models/AudioDevice.cs           — observable device model; IsBluetooth/IsBluet
 
 ## Framework
 Target is `net8.0-windows10.0.17763.0` — the version suffix is required for `Windows.Devices.Bluetooth` WinRT APIs. Changing it to bare `net8.0-windows` breaks WinRT.
+
+## Runtime
+The user runs the published Release build — logs and behaviour to verify are in `bin/Release/net8.0-windows10.0.17763.0/`, not Debug.
 
 ## No automated tests
 Verify changes by running the app. There is no test suite.
