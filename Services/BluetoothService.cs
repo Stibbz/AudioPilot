@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Rfcomm;
+using Windows.Networking.Sockets;
 
 namespace SwitchAudioDevices.Services
 {
@@ -50,6 +51,22 @@ namespace SwitchAudioDevices.Services
         }
 
         // ── P/Invoke ────────────────────────────────────────────────────────────
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BLUETOOTH_FIND_RADIO_PARAMS
+        {
+            public uint dwSize;
+        }
+
+        [DllImport("bthprops.cpl", SetLastError = true)]
+        private static extern IntPtr BluetoothFindFirstRadio(
+            ref BLUETOOTH_FIND_RADIO_PARAMS pbtfrp, out IntPtr phRadio);
+
+        [DllImport("bthprops.cpl")]
+        private static extern bool BluetoothFindRadioClose(IntPtr hFind);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr hObject);
 
         [DllImport("bthprops.cpl", SetLastError = true)]
         private static extern IntPtr BluetoothFindFirstDevice(
@@ -112,6 +129,8 @@ namespace SwitchAudioDevices.Services
         /// profile call succeeded (ERROR_SUCCESS = 0) or was already pending.
         /// Error codes are written to Debug output to aid diagnosis.
         /// </summary>
+        private static void Log(string message) => Logger.Log(message);
+
         public bool ConnectDevice(ulong bluetoothAddress, string? fallbackName = null)
         {
             try
@@ -122,7 +141,7 @@ namespace SwitchAudioDevices.Services
                 var hFind = BluetoothFindFirstDevice(ref sp, ref di);
                 if (hFind == IntPtr.Zero)
                 {
-                    System.Diagnostics.Debug.WriteLine("BT Connect: BluetoothFindFirstDevice returned NULL — no BT adapter or adapter disabled.");
+                    Log("BT Connect: BluetoothFindFirstDevice returned NULL — no BT adapter or adapter disabled.");
                     return false;
                 }
                 try
@@ -137,16 +156,26 @@ namespace SwitchAudioDevices.Services
 
                         if (!matched) continue;
 
-                        System.Diagnostics.Debug.WriteLine($"BT Connect: found '{di.szName}' addr={di.Address:X} connected={di.fConnected}");
+                        Log($"BT Connect: found '{di.szName}' addr={di.Address:X} connected={di.fConnected}");
 
                         // Close the find handle before SetServiceState (can't hold both)
                         BluetoothFindDeviceClose(hFind);
                         hFind = IntPtr.Zero;
 
-                        uint r1 = BluetoothSetServiceState(IntPtr.Zero, ref di, ref A2dpSink,  BLUETOOTH_SERVICE_ENABLE);
-                        uint r2 = BluetoothSetServiceState(IntPtr.Zero, ref di, ref Handsfree, BLUETOOTH_SERVICE_ENABLE);
-
-                        System.Diagnostics.Debug.WriteLine($"BT Connect: SetServiceState A2DP={r1} HFP={r2} (0=success, check winerror.h for others)");
+                        // Use a real radio handle — passing IntPtr.Zero can return
+                        // ERROR_INVALID_PARAMETER (87) on some devices (e.g. AirPods).
+                        IntPtr hRadio = GetFirstRadioHandle();
+                        uint r1, r2;
+                        try
+                        {
+                            r1 = BluetoothSetServiceState(hRadio, ref di, ref A2dpSink,  BLUETOOTH_SERVICE_ENABLE);
+                            r2 = BluetoothSetServiceState(hRadio, ref di, ref Handsfree, BLUETOOTH_SERVICE_ENABLE);
+                            Log($"BT Connect: SetServiceState A2DP={r1} HFP={r2} radio={(hRadio == IntPtr.Zero ? "null" : "valid")} (0=success)");
+                        }
+                        finally
+                        {
+                            if (hRadio != IntPtr.Zero) CloseHandle(hRadio);
+                        }
 
                         // ERROR_SUCCESS(0) on either profile means the request was accepted.
                         // Some drivers return non-zero but still initiate the connection;
@@ -155,63 +184,109 @@ namespace SwitchAudioDevices.Services
                     }
                     while (BluetoothFindNextDevice(hFind, ref di));
 
-                    System.Diagnostics.Debug.WriteLine($"BT Connect: no paired device matched addr={bluetoothAddress:X} name='{fallbackName}'");
+                    Log($"BT Connect: no paired device matched addr={bluetoothAddress:X} name='{fallbackName}'");
                 }
                 finally { if (hFind != IntPtr.Zero) BluetoothFindDeviceClose(hFind); }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"BT Connect: exception — {ex.Message}");
+                Log($"BT Connect: exception — {ex.Message}");
             }
             return false;
         }
 
+        // Holds an open RFCOMM socket to keep the BT ACL link alive while A2DP negotiates.
+        // Released by ReleaseAclSocket() once polling completes.
+        private StreamSocket? _aclSocket;
+
+        /// <summary>Closes the ACL keep-alive socket opened during a connection attempt.</summary>
+        public void ReleaseAclSocket()
+        {
+            var s = _aclSocket;
+            _aclSocket = null;
+            try { s?.Dispose(); } catch { }
+        }
+
         /// <summary>
-        /// Async wrapper that first tries the classic bthprops path, then falls back to
-        /// the WinRT <see cref="BluetoothDevice"/> API for devices (e.g. AirPods) that do
-        /// not respond to <c>BluetoothSetServiceState</c>.  The WinRT path requests uncached
-        /// RFCOMM services, which forces the BT stack to open an ACL link to the device;
-        /// the Windows audio subsystem then negotiates A2DP over that link automatically.
-        /// Returns true if a connection attempt was successfully initiated.
+        /// Establishes a BT connection attempt.  Tries the classic Win32 path first, then
+        /// the WinRT path which opens an actual RFCOMM socket to the device's first service.
+        /// Holding the socket open keeps the ACL link alive so Audiosrv has time to negotiate
+        /// A2DP on it.  Call <see cref="ReleaseAclSocket"/> when polling is done.
         /// </summary>
         public async Task<bool> ConnectDeviceAsync(ulong bluetoothAddress, string? fallbackName = null)
         {
-            // Classic synchronous path (works for most standard BT devices).
-            // Run on a thread-pool thread so blocking P/Invoke doesn't stall the UI.
-            bool classicOk = await Task.Run(() => ConnectDevice(bluetoothAddress, fallbackName));
-            if (classicOk) return true;
+            ReleaseAclSocket();
 
-            // WinRT fallback — requires a known address (no name-only path here).
-            if (bluetoothAddress == 0) return false;
+            bool classicOk = await Task.Run(() => ConnectDevice(bluetoothAddress, fallbackName));
+
+            if (bluetoothAddress == 0) return classicOk;
             try
             {
                 var bt = await BluetoothDevice.FromBluetoothAddressAsync(bluetoothAddress);
                 if (bt == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("BT Connect WinRT: device not found for address");
-                    return false;
+                    Log("BT Connect WinRT: device not found for address");
+                    return classicOk;
                 }
 
-                // Uncached forces an over-the-air ACL connection; the audio subsystem
-                // negotiates A2DP over it automatically once the link is up.
                 var result = await bt.GetRfcommServicesAsync(BluetoothCacheMode.Uncached);
 
-                System.Diagnostics.Debug.WriteLine($"BT Connect WinRT: GetRfcommServices error={result.Error}");
+                Log($"BT Connect WinRT: GetRfcommServices error={result.Error} services={result.Services?.Count ?? 0}");
+                if (result.Services != null)
+                    foreach (var svc in result.Services)
+                        Log($"BT Connect WinRT: service UUID={svc.ServiceId.Uuid}");
 
-                // RadioNotAvailable / OtherError mean we genuinely can't proceed.
-                // Everything else (Success, NotSupported, DeviceNotConnected, …) means the
-                // stack contacted or attempted to contact the device — worth polling.
-                return result.Error is not BluetoothError.RadioNotAvailable
-                                    and not BluetoothError.OtherError;
+                if (result.Error is BluetoothError.RadioNotAvailable or BluetoothError.OtherError)
+                    return classicOk;
+
+                // Open a socket to the first RFCOMM service (typically HFP for AirPods).
+                // This keeps the ACL link alive — without an open channel the BT stack
+                // tears it down after a few idle seconds, before A2DP can negotiate.
+                if (result.Services?.Count > 0)
+                {
+                    try
+                    {
+                        var svc    = result.Services[0];
+                        var socket = new StreamSocket();
+                        await socket.ConnectAsync(svc.ConnectionHostName, svc.ConnectionServiceName);
+                        _aclSocket = socket;
+                        Log("BT Connect WinRT: ACL keep-alive socket opened");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"BT Connect WinRT: keep-alive socket failed: {ex.Message}");
+                    }
+                }
+
+                return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"BT Connect WinRT fallback exception: {ex.Message}");
-                return false;
+                Log($"BT Connect WinRT exception: {ex.Message}");
+                return classicOk;
             }
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns a handle to the first local BT radio, or IntPtr.Zero if none found.
+        /// Caller must close with CloseHandle when done.
+        /// </summary>
+        private static IntPtr GetFirstRadioHandle()
+        {
+            try
+            {
+                var rfp = new BLUETOOTH_FIND_RADIO_PARAMS
+                {
+                    dwSize = (uint)Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>()
+                };
+                var hFind = BluetoothFindFirstRadio(ref rfp, out IntPtr hRadio);
+                if (hFind != IntPtr.Zero) BluetoothFindRadioClose(hFind);
+                return hRadio;
+            }
+            catch { return IntPtr.Zero; }
+        }
 
         private static BLUETOOTH_DEVICE_SEARCH_PARAMS MakeSearchParams() => new()
         {

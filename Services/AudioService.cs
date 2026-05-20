@@ -1,4 +1,5 @@
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 using SwitchAudioDevices.Models;
 using System.Runtime.InteropServices;
 
@@ -14,10 +15,16 @@ namespace SwitchAudioDevices.Services
         ulong  BluetoothAddress,
         float  Volume);
 
-    public class AudioService : IDisposable
+    public class AudioService : IDisposable, IMMNotificationClient
     {
         private readonly MMDeviceEnumerator _enumerator = new();
         private readonly BluetoothService   _bt         = new();
+
+        public AudioService() => _enumerator.RegisterEndpointNotificationCallback(this);
+
+        /// <summary>Raised on the thread-pool when any render endpoint is added, removed,
+        /// or changes state (e.g. BT headset disconnects).</summary>
+        public event Action? DeviceStateChanged;
 
         // BT paired-device list changes rarely; cache it for a few seconds so that
         // back-and-forth settings navigation doesn't re-enumerate on every trip.
@@ -130,7 +137,38 @@ namespace SwitchAudioDevices.Services
         /// <see cref="GetAllEndpoints"/> fetches a fresh snapshot from the radio.</summary>
         public void InvalidateBtCache() => _btCache = null;
 
-        public void Dispose() => _enumerator.Dispose();
+        /// <summary>Releases the ACL keep-alive socket held since the last connect attempt.</summary>
+        public void ReleaseAclSocket() => _bt.ReleaseAclSocket();
+
+        /// <summary>Returns true if the BT radio currently reports the device as connected.</summary>
+        public bool IsBluetoothRadioConnected(ulong address)
+        {
+            InvalidateBtCache();
+            return GetCachedBtDevices().Any(d => d.Address == address && d.IsConnected);
+        }
+
+        public void Dispose()
+        {
+            _enumerator.UnregisterEndpointNotificationCallback(this);
+            _enumerator.Dispose();
+        }
+
+        // ── IMMNotificationClient ───────────────────────────────────────────────
+
+        void IMMNotificationClient.OnDeviceStateChanged(string deviceId, DeviceState newState)
+            => DeviceStateChanged?.Invoke();
+
+        void IMMNotificationClient.OnDeviceAdded(string pwstrDeviceId)
+            => DeviceStateChanged?.Invoke();
+
+        void IMMNotificationClient.OnDeviceRemoved(string deviceId)
+            => DeviceStateChanged?.Invoke();
+
+        void IMMNotificationClient.OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
+        { }
+
+        void IMMNotificationClient.OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+        { }
 
         // ── Helpers ─────────────────────────────────────────────────────────────
 

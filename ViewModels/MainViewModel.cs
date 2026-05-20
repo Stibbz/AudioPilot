@@ -280,7 +280,7 @@ namespace SwitchAudioDevices.ViewModels
         /// through the enabled device list only.
         /// <para>
         /// If the target is a disconnected Bluetooth device a silent connection attempt
-        /// is made; the switch only happens if it succeeds within 15 seconds.
+        /// is made; the switch only happens if it succeeds within 7 seconds.
         /// If the same device failed within the last 3 seconds (i.e. the hotkey was
         /// pressed twice in quick succession) it is skipped and the next device in the
         /// same direction is selected instead.
@@ -334,22 +334,31 @@ namespace SwitchAudioDevices.ViewModels
 
         /// <summary>
         /// Attempts a Bluetooth connection without updating any UI state.
-        /// Returns true if the device shows as connected within 15 seconds.
+        /// Returns true if the device shows as connected within 7 seconds.
         /// </summary>
         private async Task<bool> TryConnectSilentAsync(AudioDevice device)
         {
+            Log($"BT Silent: initiating for '{device.Name}' addr={device.BluetoothAddress:X}");
             bool started = await _audioService.ConnectBluetoothDeviceAsync(device.BluetoothAddress, device.Name);
+            Log($"BT Silent: started={started}");
             if (!started) return false;
 
-            var deadline = DateTime.UtcNow.AddSeconds(15);
+            var deadline = DateTime.UtcNow.AddSeconds(7);
+            int tick = 0;
             while (DateTime.UtcNow < deadline)
             {
                 await Task.Delay(1500);
                 _audioService.InvalidateBtCache();
                 var endpoints = await Task.Run(() => _audioService.GetAllEndpoints());
-                if (endpoints.FirstOrDefault(e => e.Id == device.Id)?.IsBluetoothConnected == true)
+                var match = endpoints.FirstOrDefault(e => e.Id == device.Id);
+                Log($"BT Silent tick={++tick}: found={match != null} connected={match?.IsBluetoothConnected} state={match?.IsBluetoothConnected}");
+                if (match?.IsBluetoothConnected == true)
+                {
+                    Log("BT Silent: connected — returning true");
                     return true;
+                }
             }
+            Log("BT Silent: timed out");
             return false;
         }
 
@@ -396,12 +405,17 @@ namespace SwitchAudioDevices.ViewModels
             device.IsConnectionFailed = false;
             SetStatus($"Connecting to {deviceName}…", isError: false, autoCloseMs: 0);
 
+            Log($"BT UI: initiating for '{deviceName}' addr={deviceAddress:X}");
+
             // ConnectBluetoothDeviceAsync handles its own threading (P/Invoke on pool,
             // WinRT truly async) so no Task.Run wrapper is needed here.
             bool started = await _audioService.ConnectBluetoothDeviceAsync(deviceAddress, deviceName);
+            Log($"BT UI: started={started}");
 
             if (!started)
             {
+                Log("BT UI: not started — giving up");
+                _audioService.ReleaseAclSocket();
                 LoadDevices();
                 var current = FindDevice(deviceId);
                 if (current != null) current.IsConnectionFailed = true;
@@ -413,21 +427,50 @@ namespace SwitchAudioDevices.ViewModels
                 return;
             }
 
-            // Poll until the WASAPI endpoint appears as Active/connected (up to 15 s).
-            var deadline = DateTime.UtcNow.AddSeconds(15);
-            while (DateTime.UtcNow < deadline)
+            // Phase 1: poll the BT radio until fConnected=True (up to 5 s).
+            // Windows won't negotiate A2DP until we declare the device as the default
+            // audio endpoint, so we can't wait for WASAPI Active first — that's a deadlock.
+            // Once the ACL link is up (radio connected) we set the default immediately to
+            // trigger A2DP negotiation, then confirm via WASAPI in phase 2.
+            bool radioConnected = false;
+            var radioDeadline = DateTime.UtcNow.AddSeconds(5);
+            int tick = 0;
+            while (DateTime.UtcNow < radioDeadline)
             {
-                await Task.Delay(1500);
-                // Invalidate the BT cache before each poll so fConnected reflects the
-                // live radio state, not a snapshot from the previous iteration.
+                await Task.Delay(750);
+                radioConnected = await Task.Run(() => _audioService.IsBluetoothRadioConnected(deviceAddress));
+                Log($"BT UI phase1 tick={++tick}: radioConnected={radioConnected}");
+                if (radioConnected) break;
+            }
+
+            if (radioConnected)
+            {
+                Log("BT UI: radio connected — calling SetDefaultDevice to trigger A2DP");
+                _audioService.SetDefaultDevice(deviceId);
+            }
+            else
+            {
+                Log("BT UI: radio never connected — timed out in phase 1");
+            }
+
+            // Phase 2: brief WASAPI confirmation poll (up to 3 s).
+            // If WASAPI catches up, great. If not, we've done our best — the BT link
+            // is up and the default is set, so audio should work even if WASAPI lags.
+            tick = 0;
+            var wasapiDeadline = DateTime.UtcNow.AddSeconds(3);
+            while (DateTime.UtcNow < wasapiDeadline)
+            {
+                await Task.Delay(750);
                 _audioService.InvalidateBtCache();
                 var fresh = await Task.Run(() => _audioService.GetAllEndpoints());
-                if (fresh.FirstOrDefault(d => d.Id == deviceId)?.IsBluetoothConnected == true)
+                var match = fresh.FirstOrDefault(d => d.Id == deviceId);
+                bool radioStill = await Task.Run(() => _audioService.IsBluetoothRadioConnected(deviceAddress));
+                Log($"BT UI phase2 tick={++tick}: found={match != null} wasapiConnected={match?.IsBluetoothConnected} radioConnected={radioStill}");
+                if (match?.IsBluetoothConnected == true)
                 {
-                    _audioService.SetDefaultDevice(deviceId);
+                    Log("BT UI: WASAPI confirmed active");
+                    _audioService.ReleaseAclSocket();
                     LoadDevices();
-                    // WASAPI can lag reporting the new default after a BT connect;
-                    // force the flag so the UI reflects the switch immediately.
                     foreach (var d in Devices) d.IsDefault = d.Id == deviceId;
                     SetStatus($"Connected to {deviceName}", isError: false, autoCloseMs: 3000);
                     ConnectionResolved?.Invoke();
@@ -435,7 +478,20 @@ namespace SwitchAudioDevices.ViewModels
                 }
             }
 
-            // Timed out.
+            _audioService.ReleaseAclSocket();
+
+            if (radioConnected)
+            {
+                // BT radio connected and default set — declare success even if WASAPI lagged.
+                Log("BT UI: WASAPI did not confirm but radio was connected — declaring success");
+                LoadDevices();
+                foreach (var d in Devices) d.IsDefault = d.Id == deviceId;
+                SetStatus($"Connected to {deviceName}", isError: false, autoCloseMs: 3000);
+                ConnectionResolved?.Invoke();
+                return;
+            }
+
+            Log("BT UI: timed out — radio never connected");
             LoadDevices();
             var timedOut = FindDevice(deviceId);
             if (timedOut != null) timedOut.IsConnectionFailed = true;
@@ -455,6 +511,8 @@ namespace SwitchAudioDevices.ViewModels
             _settingsService.SetDeviceEnabled(deviceId, item.IsEnabled);
             _ = LoadDevicesAsync();
         }
+
+        private static void Log(string message) => Logger.Log(message);
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string? name = null)
